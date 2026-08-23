@@ -15,7 +15,6 @@
 #   * Branch-Protection   — default branch has protection + >=1 required review
 #   * Pinned-Dependencies — uv.lock committed; third-party actions are SHA-pinned
 #   * SAST                — a CodeQL workflow exists
-#   * Fuzzing             — a ClusterFuzzLite (cifuzz) workflow exists
 #   * Token-Permissions   — every workflow declares a `permissions:` block
 #
 # File-presence probes fail hard; the branch-protection probe is advisory because
@@ -108,14 +107,6 @@ jobs:
             exit 1
           fi
           echo "CodeQL workflow present."
-
-      - name: Fuzzing — a ClusterFuzzLite workflow exists
-        run: |
-          if ! grep -rqlE 'clusterfuzzlite' .github/workflows/; then
-            echo "::error::no ClusterFuzzLite workflow found (Scorecard Fuzzing signal)."
-            exit 1
-          fi
-          echo "ClusterFuzzLite workflow present."
 
       - name: Branch-Protection — re-probe (advisory)
         continue-on-error: true

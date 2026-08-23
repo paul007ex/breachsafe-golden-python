@@ -4,7 +4,7 @@
 # OpenSSF Scorecard weekly security-posture assessment.
 #
 # Scorecard scans the repo for supply-chain best practices (branch protection,
-# pinned dependencies, SAST, fuzzing, signed releases, ...) and publishes a
+# pinned dependencies, SAST, signed releases, ...) and publishes a
 # score. Results feed the OpenSSF Best Practices badge. publish_results:true
 # uploads the aggregate to api.securityscorecards.dev (public repos only).
 #
