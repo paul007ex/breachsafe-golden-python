@@ -45,8 +45,18 @@ not init git or install skills for you. Finish the new repo manually afterwards:
 
 ```bash
 cd my-new-repo
+just lock          # REQUIRED: writes uv.lock. CI runs `uv sync --locked` and fails
+                   # without it, and OpenSSF Scorecard's Pinned-Dependencies check
+                   # needs a committed lockfile. The template cannot ship one:
+                   # the resolution depends on the pyproject.toml just rendered.
 git init && git add -A && git commit -m "chore: scaffold from breachsafe-golden-python"
 just skills-sync   # install the default skill set from breachsafe-common/skills
+```
+
+Skipping `just lock` produces a repo whose first CI run dies with:
+
+```
+error: Unable to find lockfile at `uv.lock`, but `--locked` was provided.
 ```
 
 (`--trust` is kept in the commands above for forward-compatibility and to match the
