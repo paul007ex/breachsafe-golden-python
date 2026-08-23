@@ -105,6 +105,16 @@ select = [
 ]
 ignore = [
     "E501",  # line-too-long, handled by the formatter
+    # TC002/TC003 tell you to move imports into an `if TYPE_CHECKING:` block.
+    # That breaks pydantic, which is the BQP house style: pydantic resolves
+    # field annotations at runtime, so a type-only import used in a model field
+    # raises PydanticUserError("... is not fully defined") at first
+    # instantiation. Reproduced on pydantic 2.13 / py3.14; see
+    # docs/decisions/2026-08-23-ruff-ignore-tc002-tc003.md. The rules cannot
+    # tell a pydantic field annotation from an inert one, so a repo following
+    # them ships a latent runtime failure to pass a lint gate.
+    "TC002",  # move third-party import into type-checking block
+    "TC003",  # move stdlib import into type-checking block
 ]
 
 [tool.ruff.lint.pydocstyle]
