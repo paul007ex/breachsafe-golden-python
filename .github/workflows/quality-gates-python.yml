@@ -58,6 +58,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
+      # breachsafe-container ships USER breachsafe (uid 1000) for defence in depth.
+      # The Actions runner owns /__w and /__w/_temp as uid 1001, so a uid-1000
+      # container cannot write the runner file commands and every step dies with
+      # EACCES on _runner_file_commands/save_state_*. Run the ephemeral CI
+      # container as root; the non-root default still applies to the published
+      # image and the devcontainer.
+      options: --user root
     steps:
       - name: Checkout consumer repo (full history for gitleaks)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -185,6 +192,13 @@ jobs:
     needs: static
     container:
       image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
+      # breachsafe-container ships USER breachsafe (uid 1000) for defence in depth.
+      # The Actions runner owns /__w and /__w/_temp as uid 1001, so a uid-1000
+      # container cannot write the runner file commands and every step dies with
+      # EACCES on _runner_file_commands/save_state_*. Run the ephemeral CI
+      # container as root; the non-root default still applies to the published
+      # image and the devcontainer.
+      options: --user root
     steps:
       - name: Checkout consumer repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -275,6 +289,13 @@ jobs:
     needs: static
     container:
       image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
+      # breachsafe-container ships USER breachsafe (uid 1000) for defence in depth.
+      # The Actions runner owns /__w and /__w/_temp as uid 1001, so a uid-1000
+      # container cannot write the runner file commands and every step dies with
+      # EACCES on _runner_file_commands/save_state_*. Run the ephemeral CI
+      # container as root; the non-root default still applies to the published
+      # image and the devcontainer.
+      options: --user root
     steps:
       - name: Checkout consumer repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
