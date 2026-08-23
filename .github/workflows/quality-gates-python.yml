@@ -82,6 +82,21 @@ jobs:
           path: .bqp-common
           persist-credentials: false
 
+      # actions/checkout can only write inside $GITHUB_WORKSPACE, so the gate
+      # scripts land in the tree the gates are about to scan. ruff, gitleaks,
+      # jscpd and the rest then lint OUR files as if they were the consumer's:
+      # ruff reported 39 errors against .bqp-common/quality-gates/tests/, mostly
+      # S101 for asserts that belong in a test. trivy already had a skip-dirs
+      # entry for this, which fixed one tool and left the others. Moving the
+      # checkout out of the workspace fixes every scanner at once and cannot
+      # rot the way a per-tool exclude list does.
+      - name: Move gate scripts out of the scanned tree
+        run: |
+          set -eux
+          rm -rf "$RUNNER_TEMP/bqp-common"
+          mv .bqp-common "$RUNNER_TEMP/bqp-common"
+          test -f "$RUNNER_TEMP/bqp-common/quality-gates/check_size_policy.py"
+
       # Diff-only anti-pattern gate.  It walks only added source/config lines and
       # blocks a small set of high-signal hazards.  The full catalog remains a
       # reviewer aid; this is intentionally not a regex replacement for review.
@@ -109,7 +124,7 @@ jobs:
             echo "::error::PR base commit $BASE_SHA is unavailable after fetching $BASE_REF" >&2
             exit 2
           }
-          PR_BODY="$PR_BODY" python3 .bqp-common/quality-gates/check_antipattern_diff.py \
+          PR_BODY="$PR_BODY" python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_antipattern_diff.py \
             --base-ref "$BASE_SHA" --head "$HEAD_SHA" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
       - name: Install project (locked dev extras)
@@ -147,7 +162,7 @@ jobs:
 
       - name: Size policy (file/function/class ceilings)
         run: |
-          python3 .bqp-common/quality-gates/check_size_policy.py \
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_size_policy.py \
             --src-dir "src/${{ inputs.module }}"
 
       # =======================================================================
@@ -222,6 +237,21 @@ jobs:
           path: .bqp-common
           persist-credentials: false
 
+      # actions/checkout can only write inside $GITHUB_WORKSPACE, so the gate
+      # scripts land in the tree the gates are about to scan. ruff, gitleaks,
+      # jscpd and the rest then lint OUR files as if they were the consumer's:
+      # ruff reported 39 errors against .bqp-common/quality-gates/tests/, mostly
+      # S101 for asserts that belong in a test. trivy already had a skip-dirs
+      # entry for this, which fixed one tool and left the others. Moving the
+      # checkout out of the workspace fixes every scanner at once and cannot
+      # rot the way a per-tool exclude list does.
+      - name: Move gate scripts out of the scanned tree
+        run: |
+          set -eux
+          rm -rf "$RUNNER_TEMP/bqp-common"
+          mv .bqp-common "$RUNNER_TEMP/bqp-common"
+          test -f "$RUNNER_TEMP/bqp-common/quality-gates/check_size_policy.py"
+
       - name: Install project (locked dev extras)
         run: uv sync --locked --extra dev
 
@@ -237,7 +267,7 @@ jobs:
       - name: No-skipped-tests guard
         if: always()
         run: |
-          python3 .bqp-common/quality-gates/check_no_skipped_tests.py \
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_no_skipped_tests.py \
             pytest-results.xml
 
       # Every changed line must be covered (design task 10). Compares the
