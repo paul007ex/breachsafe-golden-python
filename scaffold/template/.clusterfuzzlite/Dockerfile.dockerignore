@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: BreachSAFE
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# Scoped ignore-file for .clusterfuzzlite/Dockerfile.
+#
+# BuildKit uses a "<dockerfile-path>.dockerignore" file, when present, INSTEAD
+# of the repo-root .dockerignore for that specific build. The ClusterFuzzLite
+# Dockerfile does `COPY . $SRC/project`, so it needs the full source tree; a
+# restrictive root .dockerignore would starve it. This file gives the fuzz
+# build the context it needs while leaving the root .dockerignore untouched.
+# It excludes only never-needed noise.
+.git
+.venv
+dist
+**/__pycache__
+*.pyc

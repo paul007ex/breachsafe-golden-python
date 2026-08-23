@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: BreachSAFE
+# SPDX-License-Identifier: Apache-2.0
+#
+# Google OSS-Fuzz build image (hosted continuous fuzzing; Apache/OSS repos only).
+# During onboarding these oss-fuzz/ files are copied into
+# google/oss-fuzz/projects/<name>/, where the Dockerfile and build.sh are
+# siblings. For the canonical hosted build replace the COPY of the source below
+# with `RUN git clone --depth 1 <main_repo> $SRC/project` (see oss-fuzz/README.md);
+# the COPY form is kept for local `infra/helper.py build_fuzzers` testing.
+FROM gcr.io/oss-fuzz-base/base-builder-python
+
+COPY . $SRC/project
+COPY build.sh $SRC/build.sh
+WORKDIR $SRC/project

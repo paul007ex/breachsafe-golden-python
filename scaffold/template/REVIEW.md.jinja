@@ -12,7 +12,7 @@ and the change-governance gate.
 | Severity | Meaning | Reviewer action |
 |---|---|---|
 | **Critical** | Memory-unsafety, auth/authz bypass, secret exposure, a crypto-correctness error, or remote code execution. | Must fix before merge. Never advisory. |
-| **Important** | A real correctness bug, a missing validation on an untrusted boundary, a silently-swallowed error, or a security-relevant regression (dropped property tests, lowered coverage, unsigned release). | Fix before merge unless explicitly deferred with a tracked issue. |
+| **Important** | A real correctness bug, a missing validation on an untrusted boundary, a silently-swallowed error, or a security-relevant regression (dropped fuzzing, lowered coverage, unsigned release). | Fix before merge unless explicitly deferred with a tracked issue. |
 | **Minor** | Style beyond the linters, naming, small duplication, a weak test. | Fix when cheap; may defer. |
 | **Nit** | Subjective/cosmetic. | Optional. |
 
@@ -28,13 +28,16 @@ Do not pad the review with praise or restate the diff.
 
 ## BQP-specific bars (enforce these)
 
-1. **New parser / untrusted-input boundary must ship property-based tests.** Any new
-   code that parses or validates untrusted input (CBOM, scan JSON, tool output, a
-   config file, network bytes) requires matching Hypothesis tests under
-   `tests/property/` in the same PR, covering malformed and truncated input. A new
-   boundary with no property tests is an **Important** finding. (Coverage-guided
-   fuzzing is deliberately not part of this standard: atheris publishes x86_64-only
-   wheels, so it cannot run on the arm64 machines this platform is developed on.)
+1. **New parser / untrusted-input boundary must ship a fuzz harness.** Any new code
+   that parses or validates untrusted input (CBOM, scan JSON, tool output, a config
+   file, network bytes) requires a matching fuzz target under `tests/fuzz/` in the
+   same PR. A new boundary with no fuzz harness is an **Important** finding. Add
+   Hypothesis tests under `tests/property/` for the same boundary covering malformed
+   and truncated input: the fuzzer finds crashes, the property tests pin the contract.
+
+   Note on architecture: Atheris publishes x86_64-only wheels, so harnesses run in CI
+   on amd64 runners inside the OSS-Fuzz base image and cannot be executed on an arm64
+   development machine. Reproducing a CI crash locally needs amd64 emulation.
 2. **No PII in logs.** Flag any log/trace/exception that could emit personal data,
    secrets, tokens, or full request/response bodies. Secrets or PII in a log line is
    **Critical**. Logs must be structured and redacted at the boundary.

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: {{ license }}
+#
+# Google OSS-Fuzz project metadata for {{ project_name }} (Apache/OSS repos only).
+# Copied into google/oss-fuzz/projects/{{ project_slug }}/project.yaml during the
+# one-time onboarding PR (see oss-fuzz/README.md). OSS-Fuzz accepts open-source
+# projects only, so this file is generated solely for Apache-2.0 repos.
+homepage: "https://github.com/{{ github_owner }}/{{ project_slug }}"
+language: python
+main_repo: "https://github.com/{{ github_owner }}/{{ project_slug }}"
+primary_contact: "security@breachsafe.io"
+sanitizers:
+  - address
+  - undefined
+fuzzing_engines:
+  - libfuzzer
