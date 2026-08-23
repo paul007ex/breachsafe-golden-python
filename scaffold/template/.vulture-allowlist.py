@@ -24,6 +24,7 @@ field_validator       # decorated validators referenced by name at model build
 model_validator       # whole-model validators, likewise framework-invoked
 model_dump            # serialization entry point called by callers/tests only
 model_dump_json       # JSON serialization entry point
+cls                   # @classmethod validator receiver; a language binding, never dead code
 
 # --- Gradio / web UI (only if this repo grows a UI) ---------------------------
 # Event handlers and component callbacks are wired by the framework at runtime.
