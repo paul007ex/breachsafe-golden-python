@@ -353,13 +353,25 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # Uses the trivy already pinned inside breachsafe-container, not
+      # aquasecurity/trivy-action. The action downloads its own trivy binary with
+      # curl or wget, and this image deliberately ships neither, so it failed:
+      #   aquasecurity/trivy crit http_download unable to find wget or curl
+      #   aquasecurity/trivy crit unable to find 'v0.70.0'
+      # Re-fetching a tool the pinned image already provides also defeats the point
+      # of pinning the image, and the action wanted an OLDER trivy (0.70.0) than the
+      # image carries (0.74.0). The version is pinned by the container tag.
       - name: trivy filesystem scan (fails on HIGH/CRITICAL)
-        # v0.36.0 pinned to the dereferenced commit (not a mutable tag).
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
-        with:
-          scan-type: fs
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
-          format: table
-          exit-code: 1
-          skip-dirs: scratch,.git,.bqp-common
+        run: |
+          set -o pipefail
+          trivy --version | head -1
+          trivy filesystem \
+            --scanners vuln \
+            --ignore-unfixed \
+            --severity HIGH,CRITICAL \
+            --format table \
+            --exit-code 1 \
+            --skip-dirs scratch \
+            --skip-dirs .git \
+            --skip-dirs .bqp-common \
+            . | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
