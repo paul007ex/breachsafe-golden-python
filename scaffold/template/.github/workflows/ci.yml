@@ -35,6 +35,10 @@ jobs:
     uses: paul007ex/breachsafe-golden-python/.github/workflows/quality-gates-python.yml@v1
     with:
       module: ${{ needs.load-config.outputs.module }}
-      coverage_min: ${{ needs.load-config.outputs.coverage_min }}
+      # bqp.env values arrive from $GITHUB_OUTPUT as STRINGS, and the reusable
+      # workflow declares coverage_min as `type: number`. GitHub rejects the call
+      # at parse time when the types disagree: the gates job never starts, the run
+      # fails with no job and no annotation, and nothing says why. fromJSON casts.
+      coverage_min: ${{ fromJSON(needs.load-config.outputs.coverage_min) }}
       container_tag: ${{ needs.load-config.outputs.container_tag }}
     secrets: inherit
