@@ -1,0 +1,82 @@
+# breachsafe-golden-python — the BreachSAFE golden Python repo scaffolder (copier template).
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# Usage:  uvx copier copy gh:paul007ex/breachsafe-golden-python/scaffold my-new-repo
+# Drift:  cd my-new-repo && uvx copier update --trust
+#
+# Design of record: breachsafe-common/docs/specs/2026-08-22-breachsafe-repo-design.md
+# Split rationale:  breachsafe-common/docs/ci-cd-inventory.md (public execution vs
+#                   private knowledge). Skills stay in the PRIVATE breachsafe-common;
+#                   only CI execution lives in this public repo.
+
+_subdirectory: template
+_templates_suffix: .jinja
+_answers_file: .copier-answers.yml
+
+project_name:
+  type: str
+  help: 'Human-readable product name, e.g. "QuReddy".'
+
+project_slug:
+  type: str
+  help: Distribution / repo name (kebab-case).
+  default: "{{ project_name | lower | replace(' ', '-') }}"
+
+module_name:
+  type: str
+  help: Python import name (snake_case).
+  default: "{{ project_slug | replace('-', '_') }}"
+
+description:
+  type: str
+  default: "A BreachSAFE Quantum Platform component."
+
+github_owner:
+  type: str
+  help: GitHub owner/org that hosts the scaffolded repo.
+  default: paul007ex
+
+project_type:
+  type: str
+  help: Repo archetype. Only python-cli ships today; the switch reserves room.
+  choices:
+    - python-cli
+  default: python-cli
+
+license:
+  type: str
+  help: >-
+    Default is PolyForm-Noncommercial (source-available, NOT open source).
+    Apache-2.0 is a DELIBERATE, logged opt-in for a genuinely-OSS engine repo
+    (e.g. qureddy base). Choosing Apache is a reviewed exception to the
+    platform PolyForm default, never a silent one.
+  choices:
+    "PolyForm-Noncommercial-1.0.0 (source-available, default)": PolyForm-Noncommercial-1.0.0
+    "Apache-2.0 (OSS engine, deliberate exception)": Apache-2.0
+  default: PolyForm-Noncommercial-1.0.0
+
+python_version:
+  type: str
+  help: CPython version baseline. The platform standard is 3.14 (no 3.12 fallback).
+  default: "3.14"
+
+coverage_min:
+  type: int
+  help: Minimum test coverage percent enforced by the test gate.
+  default: 90
+
+golden_ref:
+  type: str
+  help: >-
+    Git ref of breachsafe-golden-python reusable workflows, recorded in the
+    rendered CLAUDE.md. NOTE: this does NOT rewrite the rendered workflow files.
+    GitHub Actions files carry ~20 ${{ }} expressions that collide with Jinja, so
+    they are excluded from templating (_templates_suffix: .jinja) and copied
+    verbatim with owner and ref hardcoded. Changing this value alone will not
+    repoint CI; edit .github/workflows/*.yml in the rendered repo as well.
+  default: v1
+
+container_tag:
+  type: str
+  help: Tag of ghcr.io/<owner>/breachsafe-container to run CI/dev in.
+  default: "3.14-openssl3.5.7"

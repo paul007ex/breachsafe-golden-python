@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 BreachSAFE
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# Change-governance thresholds for breachsafe-common (issue #5, ADR-BQP-005).
+# Consumed by quality-gates/check_major_change.py; explicit CLI flags win over
+# this file, and this file wins over the script's built-in defaults.
+#
+# A change classified "non-surgical" must carry a decision record under
+# docs/decisions/ containing "## Options" (an A/B/C scored table), "## Steelman",
+# and "## Pressure-test evidence".
+
+# Deliberately above the script defaults. This repo lands vendored third-party
+# material in single commits (the NIST standards set, the 359-file Go skill
+# catalog), which are high-LOC and high-file-count but carry no design risk.
+# Judge those by the core_paths list below, not by size.
+loc_threshold = 200
+files_threshold = 10
+
+# Touching any of these is non-surgical regardless of size: they define what
+# every downstream BQP repo inherits, so a one-line edit here can silently
+# change the standard everyone else is held to.
+core_paths = [
+  # Reusable Mode B workflows — gate logic every consumer repo inherits.
+  ".github/workflows/quality-gates-python.yml",
+  ".github/workflows/release-python.yml",
+  ".github/workflows/major-change-gate.yml",
+  ".github/workflows/scorecard-verify.yml",
+
+  # The gates themselves.
+  "quality-gates/**",
+  "hooks/**",
+
+  # The scaffold: changes here propagate to every repo created from now on.
+  "scaffold/copier.yml",
+  "scaffold/template/.github/workflows/**",
+  "scaffold/template/pyproject.toml.jinja",
+  "scaffold/template/justfile.jinja",
+
+  # Licensing and provenance. A wrong edit here mislabels third-party material.
+  "REUSE.toml",
+  "LICENSES/**",
+
+  # Accepted decisions. Editing an ADR in place rewrites history.
+  "docs/adr/**",
+
+  # Release tooling consumed by other repos' release gates.
+  "release/**",
+
+  # The canonical skills library and the manifests that map it to products.
+  "skills/manifests/**",
+  "skills/scripts/**",
+]

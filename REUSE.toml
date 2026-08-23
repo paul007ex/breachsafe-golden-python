@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# breachsafe-golden-python is a PUBLIC, MULTI-LICENSE repo. Public does not mean
+# open source: the scaffold bodies are PolyForm-Noncommercial (source-available).
+#
+#   Apache-2.0                 - generic, license-agnostic build tooling that
+#                                Apache/OSS consumer repos must be able to call
+#                                without a noncommercial leak: the reusable
+#                                workflows and the gate scripts they check out.
+#                                qureddy is Apache-2.0 and consumes exactly this
+#                                bucket, which is why it must stay Apache.
+#   PolyForm-Noncommercial-1.0 - BQP-branded first-party material: the copier
+#                                scaffold template bodies and this repo's docs.
+#
+# Carried over verbatim from breachsafe-common's ADR-BQP-005 3.1 exception. Do
+# not widen the Apache bucket; it is scoped to generic build tooling.
+
+version = 1
+SPDX-PackageName = "breachsafe-golden-python"
+SPDX-PackageSupplier = "BreachSAFE <security@breachsafe.io>"
+SPDX-PackageDownloadLocation = "https://github.com/paul007ex/breachsafe-golden-python"
+
+[[annotations]]
+path = [".github/workflows/**", "quality-gates/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 BreachSAFE"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "scaffold/**",
+  "README.md",
+  "REUSE.toml",
+  "LICENSE",
+  ".jscpd.json",
+  ".python-version",
+  ".gitignore",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 BreachSAFE"
+SPDX-License-Identifier = "PolyForm-Noncommercial-1.0.0"

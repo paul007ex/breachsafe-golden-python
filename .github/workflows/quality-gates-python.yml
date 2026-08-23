@@ -1,0 +1,307 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# Reusable "Mode B" quality-gates workflow (breachsafe-repo design §4.3).
+#
+# The single source of truth for the static + test + build + audit gates,
+# generalized from breachsafe/qureddy's 7-phase CI. A consumer repo calls it:
+#
+#   jobs:
+#     quality-gates:
+#       uses: paul007ex/breachsafe-golden-python/.github/workflows/quality-gates-python.yml@v1.1.1
+#       with:
+#         module: myproject          # src/<module>, --cov=<module>
+#         coverage_min: 90           # pytest --cov-fail-under
+#         container_tag: 3.14-openssl3.5.7
+#
+# Everything runs inside the pinned breachsafe-container so CI stops rebuilding
+# OpenSSL 3.5 and tool versions stop drifting (design §4.2). The container
+# already carries: uv, ruff, mypy, bandit, pip-audit, reuse, gitleaks, trivy.
+# Third-party actions are SHA-pinned; least-privilege token; no persisted creds.
+
+name: quality-gates-python
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        description: "Import/package name under src/ (e.g. qureddy)"
+        type: string
+        required: true
+      coverage_min:
+        description: "Minimum coverage percent (pytest --cov-fail-under)"
+        type: number
+        required: false
+        default: 90
+      container_tag:
+        description: "breachsafe-container tag, e.g. 3.14-openssl3.5.7"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gates-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ===========================================================================
+  # Static analysis (no execution): lint, format, type, SAST, dep CVEs,
+  # license, secrets, and the file/function/class size ceiling.
+  # ===========================================================================
+  static:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
+    steps:
+      - name: Checkout consumer repo (full history for gitleaks)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The gate scripts (check_size_policy.py, check_no_skipped_tests.py) live
+      # in breachsafe-golden-python. Owner is always-constant and hardcoded per §4.1.
+      - name: Checkout breachsafe-golden-python gate scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: paul007ex/breachsafe-golden-python
+          ref: v1
+          path: .bqp-common
+          persist-credentials: false
+
+      # Diff-only anti-pattern gate.  It walks only added source/config lines and
+      # blocks a small set of high-signal hazards.  The full catalog remains a
+      # reviewer aid; this is intentionally not a regex replacement for review.
+      - name: Anti-pattern diff gate
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -o pipefail
+          if ! git rev-parse --verify --quiet "$BASE_SHA^{commit}" >/dev/null; then
+            git fetch --no-tags --depth=1 origin \
+              "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          fi
+          git rev-parse --verify --quiet "$BASE_SHA^{commit}" >/dev/null || {
+            echo "::error::PR base commit $BASE_SHA is unavailable after fetching $BASE_REF" >&2
+            exit 2
+          }
+          PR_BODY="$PR_BODY" python3 .bqp-common/quality-gates/check_antipattern_diff.py \
+            --base-ref "$BASE_SHA" --head "$HEAD_SHA" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+
+      - name: Install project (locked dev extras)
+        run: uv sync --locked --extra dev
+
+      - name: ruff check
+        run: uv run --locked ruff check .
+
+      # TRY (tryceratops) + FBT (boolean-trap) families are ADVISORY — surfaced
+      # but never block, per the tuned-MAX gate spec (design task 10).
+      - name: ruff TRY/FBT families (advisory)
+        continue-on-error: true
+        run: uv run --locked ruff check --select TRY,FBT .
+
+      - name: ruff format --check
+        run: uv run --locked ruff format --check .
+
+      - name: mypy --strict
+        run: uv run --locked mypy "src/${{ inputs.module }}" --strict
+
+      - name: import-linter (architecture contracts)
+        run: uv run --locked lint-imports
+
+      - name: bandit
+        run: uv run --locked bandit -r -ll "src/${{ inputs.module }}"
+
+      - name: pip-audit
+        run: uv run --locked pip-audit
+
+      - name: reuse lint
+        run: reuse lint
+
+      - name: gitleaks full-history scan
+        run: gitleaks detect --source . --redact --no-banner --log-opts="--all"
+
+      - name: Size policy (file/function/class ceilings)
+        run: |
+          python3 .bqp-common/quality-gates/check_size_policy.py \
+            --src-dir "src/${{ inputs.module }}"
+
+      # =======================================================================
+      # Tuned MAX code-quality gate (design task 10). Copy-paste detection,
+      # cyclomatic/maintainability ceilings, dead-code + modernization, and
+      # docstring coverage. jscpd / xenon / refurb / vulture / pylint-R0801 are
+      # BLOCKING; interrogate is ADVISORY. diff-cover runs in the test job
+      # (it needs the coverage.xml produced there).
+      # =======================================================================
+      - name: jscpd (copy-paste detector, <=0.5% duplication)
+        # jscpd is Node-based; the breachsafe-container image carries Node 20 for
+        # this gate (mirrors the standalone duplicate-code.yml, threshold tuned
+        # to 0.5% here via the consumer repo's .jscpd.json).
+        run: npx --yes jscpd@4 --config .jscpd.json .
+
+      - name: xenon (cyclomatic-complexity ceiling)
+        run: |
+          uv run --locked xenon \
+            --max-absolute B --max-modules A --max-average A \
+            "src/${{ inputs.module }}"
+
+      - name: refurb (Python modernization, blocking)
+        run: uv run --locked refurb "src/${{ inputs.module }}"
+
+      - name: vulture (dead code, min-confidence 80)
+        run: |
+          uv run --locked vulture \
+            "src/${{ inputs.module }}" .vulture-allowlist.py \
+            --min-confidence 80
+
+      - name: interrogate (docstring coverage, advisory)
+        continue-on-error: true
+        run: uv run --locked interrogate -v "src/${{ inputs.module }}"
+
+      - name: pylint duplicate-code (R0801)
+        run: |
+          uv run --locked pylint \
+            --disable=all --enable=duplicate-code \
+            "src/${{ inputs.module }}"
+
+  # ===========================================================================
+  # Tests: hermetic unit + coverage floor, then the no-skipped-tests guard on
+  # the emitted JUnit XML (a green pytest run that quietly skipped everything
+  # must still fail — qureddy issue #15).
+  # ===========================================================================
+  test:
+    name: Unit tests + coverage
+    runs-on: ubuntu-latest
+    needs: static
+    container:
+      image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so diff-cover can compare changed lines against the base.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout breachsafe-golden-python gate scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: paul007ex/breachsafe-golden-python
+          ref: v1
+          path: .bqp-common
+          persist-credentials: false
+
+      - name: Install project (locked dev extras)
+        run: uv sync --locked --extra dev
+
+      - name: pytest (coverage floor + JUnit XML)
+        run: |
+          uv run --locked pytest \
+            --cov="${{ inputs.module }}" \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under="${{ inputs.coverage_min }}" \
+            --junitxml=pytest-results.xml
+
+      - name: No-skipped-tests guard
+        if: always()
+        run: |
+          python3 .bqp-common/quality-gates/check_no_skipped_tests.py \
+            pytest-results.xml
+
+      # Every changed line must be covered (design task 10). Compares the
+      # coverage.xml just produced against the PR base branch. Only meaningful on
+      # pull_request events, where a base ref exists.
+      - name: diff-cover (100% coverage on changed lines)
+        if: github.event_name == 'pull_request'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          base_ref="${{ github.event.pull_request.base.ref }}"
+          # The remote-tracking ref origin/<base> is not guaranteed to exist for a
+          # PR checkout even at fetch-depth:0, so fetch it explicitly first. If it
+          # still cannot be resolved, warn and skip rather than false-fail the gate.
+          if ! git rev-parse --verify --quiet "origin/${base_ref}" >/dev/null; then
+            git fetch --no-tags origin "+refs/heads/${base_ref}:refs/remotes/origin/${base_ref}" || true
+          fi
+          if ! git rev-parse --verify --quiet "origin/${base_ref}" >/dev/null; then
+            echo "::warning::diff-cover: base ref origin/${base_ref} could not be resolved; skipping changed-line coverage check." >&2
+            exit 0
+          fi
+          uv run --locked diff-cover coverage.xml \
+            --compare-branch "origin/${base_ref}" \
+            --fail-under=100
+
+      - name: Upload coverage + JUnit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-and-junit
+          path: |
+            coverage.xml
+            pytest-results.xml
+          if-no-files-found: error
+          retention-days: 14
+
+      # Allure results are emitted on every run (pyproject addopts --alluredir).
+      # Upload them so the report is available for `allure serve`/publish each run.
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: allure-results
+          path: .allure-results
+          # WARN, not error: a consumer whose pytest addopts omit --alluredir
+          # produces no .allure-results, and that must not hard-fail this job.
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ===========================================================================
+  # Build + audit: build the distribution, then scan the filesystem for
+  # HIGH/CRITICAL vulnerabilities that actually fail the build.
+  # ===========================================================================
+  build-audit:
+    name: Build + trivy audit
+    runs-on: ubuntu-latest
+    needs: static
+    container:
+      image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: uv build
+        run: |
+          uv sync --locked --extra dev
+          uv build
+
+      - name: Upload built distribution
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: trivy filesystem scan (fails on HIGH/CRITICAL)
+        # v0.36.0 pinned to the dereferenced commit (not a mutable tag).
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: 1
+          skip-dirs: scratch,.git,.bqp-common

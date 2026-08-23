@@ -1,0 +1,101 @@
+<!-- SPDX-License-Identifier: {{ license }} -->
+# Contributing to {{ project_name }}
+
+Thanks for considering a contribution. This document covers what you need to know.
+
+## Contents
+
+1. [Before you contribute](#1-before-you-contribute)
+2. [Set up a development environment](#2-set-up-a-development-environment)
+3. [Workflow](#3-workflow)
+4. [Change governance](#4-change-governance)
+5. [Coding style](#5-coding-style)
+6. [Testing](#6-testing)
+7. [Dependencies](#7-dependencies)
+8. [Security](#8-security)
+9. [Commits](#9-commits)
+10. [License](#10-license)
+11. [Code of Conduct](#11-code-of-conduct)
+
+## 1. Before you contribute
+
+Read `README.md` (what {{ project_name }} is), `CLAUDE.md` (the inherited invariants and
+process rules), and this file before writing code.
+
+## 2. Set up a development environment
+
+```bash
+git clone https://github.com/{{ github_owner }}/{{ project_slug }}.git
+cd {{ project_slug }}
+
+# Install uv if you don't have it: https://github.com/astral-sh/uv
+just setup            # uv venv --python {{ python_version }} + uv pip install -e '.[dev]'
+
+# Verify
+uv run {{ project_slug }} --help || uv run python -m {{ module_name }}
+just gates            # full local gate suite
+```
+
+Python **{{ python_version }}** is the baseline for every command, venv, hook, script, and
+test. There is no fallback to an older interpreter.
+
+## 3. Workflow
+
+1. **Open an issue first** for non-trivial changes.
+2. **Branch from `main`** (`<type>/<short-description>`, e.g. `feat/foo`, `fix/bar`).
+3. **One thing per PR.**
+4. **Run the gates locally** before pushing: `just gates`.
+5. **Open a PR** and fill out the template. The audit checklist is non-negotiable.
+6. **Never commit directly to `main`.**
+
+## 4. Change governance
+
+Any change that is **not surgical** (diff > ~150 LOC or > ~8 files, labelled `major`, or
+touching a designated core path) requires a **decision record** in `docs/decisions/` before
+code. Copy `docs/decisions/TEMPLATE.md`; it must contain a scored `## Options (A/B/C scored)`
+comparison, a `## Steelman`, and `## Pressure-test evidence` from an isolated `/tmp` run. CI
+blocks the PR if the record is missing or malformed.
+
+## 5. Coding style
+
+- Python {{ python_version }}, typed (`mypy --strict`), formatted (`ruff format`), linted (`ruff check`)
+- Every public function has a Google-style docstring
+- Specific exceptions, not bare `except` or broad `except Exception`
+- Subprocess: list-form args, explicit `timeout`, `shell=False`
+- All datetimes timezone-aware UTC
+- an `SPDX-License-Identifier` header set to `{{ license }}` on every source file (`reuse lint` enforces this)
+
+## 6. Testing
+
+- Every test runs every time. No `@pytest.mark.skip` carve-outs.
+- Coverage minimum is **{{ coverage_min }}%**, enforced by `just test`.
+- Error paths and boundary values are tested, not just happy paths.
+
+## 7. Dependencies
+
+Adding a runtime dependency requires PR justification: it must replace meaningful code, be
+actively maintained, carry a redistribution-compatible license (no GPL/AGPL/LGPL), and have a
+recognizable maintainer. `pip-audit` must pass.
+
+## 8. Security
+
+If you find a vulnerability, **do not open a public issue.** See [`SECURITY.md`](SECURITY.md).
+Insecure shortcuts are forbidden even when requested.
+
+## 9. Commits
+
+Conventional Commits: `<type>(<scope>): <subject>`. Types: `feat`, `fix`, `docs`, `test`,
+`refactor`, `build`, `ci`, `chore`, `perf`, `security`.
+
+## 10. License
+
+By contributing you confirm you have authority to contribute the material and agree it is
+licensed under **{{ license }}**. Every first-party source file carries:
+
+```
+SPDX-License-Identifier: {{ license }}
+```
+
+## 11. Code of Conduct
+
+See [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Be respectful, assume good faith, focus on the code.

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: {{ license }}
+"""Top-level package for {{ project_name }}."""
+
+from __future__ import annotations
+
+__version__ = "0.0.1"
+
+
+def greeting(name: str) -> str:
+    """Return the {{ project_name }} greeting line for ``name``.
+
+    A small pure function used by the CLI and exercised by the property-based
+    tests as a template for testing real pure functions.
+
+    Args:
+        name: The subject of the greeting.
+
+    Returns:
+        A greeting string that always contains ``name``.
+    """
+    return f"hello, {name} -- from {{ module_name }}"

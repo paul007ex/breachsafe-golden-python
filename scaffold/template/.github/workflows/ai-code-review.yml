@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# AI code review (ADVISORY — never blocks). Verbatim, NOT a Jinja template:
+# GitHub Actions `${{ }}` collides with Jinja `{{ }}`, so this file is copied
+# literally. The always-constant owner is hardcoded per the breachsafe-repo
+# design §4.1. It calls the reusable workflow in breachsafe-golden-python so the review
+# bar and wiring live once and propagate on the next run.
+#
+# Review bar: REVIEW.md at the repo root. Trigger: every PR, plus a `@claude`
+# mention comment. Requires the ANTHROPIC_API_KEY repo secret.
+
+name: ai-code-review
+
+on:
+  pull_request:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  id-token: write
+
+jobs:
+  ai-code-review:
+    uses: paul007ex/breachsafe-golden-python/.github/workflows/ai-code-review.yml@v1
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

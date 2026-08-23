@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: {{ license }}
+# Default skill set for a {{ project_type }} repo. Installed from
+# {{ github_owner }}/breachsafe-common/skills via `just skills-sync`. Drift is checked in CI.
+repo: {{ project_slug }}
+archetype: {{ project_type }}
+source: https://github.com/{{ github_owner }}/breachsafe-common/tree/main/skills
+skills:
+  - breachsafe-architecture-review
+  - breachsafe-implement
+  - breachsafe-quality-review
+  - breachsafe-pqc-pm
+  - breachsafe-security-audit
+  - breachsafe-release
+  - breachsafe-cicd-hygiene
+  - breachsafe-container-hygiene
+  - breachsafe-test-architect
+  - breachsafe-error-handling
+  - breachsafe-docs

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: {{ license }}
+version = 1
+SPDX-PackageName = "{{ project_slug }}"
+SPDX-PackageSupplier = "BreachSAFE <security@breachsafe.io>"
+
+# `precedence = "override"` makes this annotation authoritative over any inline
+# SPDX header. The verbatim (non-Jinja) files — GitHub Actions workflows, issue
+# templates, CODE_OF_CONDUCT, etc. — cannot template their header (Jinja `{{ '{{' }} }}`
+# collides with Actions `${{ '{{' }} }}`), so they carry a fixed header. Override lets the
+# chosen `license` flip the whole tree, so `reuse lint` is clean in BOTH the
+# PolyForm and Apache variants.
+[[annotations]]
+path = "**"
+precedence = "override"
+SPDX-FileCopyrightText = "BreachSAFE"
+SPDX-License-Identifier = "{{ license }}"

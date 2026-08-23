@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+# Environments
+.venv/
+venv/
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+# OS
+.DS_Store

@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reusable AI code-review workflow ("Mode B", breachsafe-repo design §4.3).
+#
+# ADVISORY by design: the reviewer posts a PR comment against the BQP review bar
+# (the consumer repo's REVIEW.md) and NEVER blocks the merge. A consumer calls
+# it from its own thin .github/workflows/ai-code-review.yml:
+#
+#   jobs:
+#     ai-code-review:
+#       uses: paul007ex/breachsafe-golden-python/.github/workflows/ai-code-review.yml@v1
+#       secrets:
+#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#
+# Triggered on every pull_request and on a `@claude` mention. All third-party
+# actions are SHA-pinned (anthropics/claude-code-action to the v1 commit), so a
+# consumer's pin of this file's @ref pins the whole chain to immutable commits.
+
+name: ai-code-review
+
+on:
+  workflow_call:
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: "Anthropic API key for the Claude Code review action."
+        required: true
+
+# Least privilege: the reviewer reads the diff and posts a comment. It never
+# needs write to contents. id-token is for the action's OIDC handshake.
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  id-token: write
+
+concurrency:
+  group: ai-code-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ===========================================================================
+  # Advisory review. Runs the /code-review skill with --comment so findings land
+  # as an inline PR comment. continue-on-error + a permissive `if` keep it from
+  # ever failing the check suite: it is guidance, not a gate.
+  # ===========================================================================
+  review:
+    name: AI code review (advisory)
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Claude code review
+        uses: anthropics/claude-code-action@24dcd50c0568f0fc9e9211213a4fd2d9eb15c4e0 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "/code-review:code-review --comment"
+
+  # ===========================================================================
+  # DISABLED stub — gate-on-Important. When BQP decides to make an "Important"
+  # (or higher) finding block the merge, flip `if: false` to a real condition
+  # and drop continue-on-error. Kept here, disabled, so the escalation path is
+  # visible and reviewed rather than reinvented. It is NOT active today.
+  # ===========================================================================
+  gate-on-important:
+    name: Gate on Important findings (DISABLED)
+    if: false
+    needs: review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: |
+          echo "Disabled: AI review is advisory only. See design §4.3." >&2
+          exit 1

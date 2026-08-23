@@ -1,0 +1,78 @@
+<!-- SPDX-License-Identifier: {{ license }} -->
+# Security Policy
+
+{{ project_name }} is a BreachSAFE Quantum Platform component. We take vulnerability reports
+seriously.
+
+## Contents
+
+1. [Supported versions](#1-supported-versions)
+2. [Report a vulnerability](#2-report-a-vulnerability)
+3. [Response targets](#3-response-targets)
+4. [Disclosure policy](#4-disclosure-policy)
+5. [Enforced security checks](#5-enforced-security-checks)
+6. [Security exceptions](#6-security-exceptions)
+
+## 1. Supported versions
+
+| Version | Supported |
+|---|---|
+| `main` (development) | Yes |
+| Latest published release | Yes |
+| Older releases | No |
+
+Security fixes target `main` and the latest release. There is no backport commitment for
+earlier versions.
+
+## 2. Report a vulnerability
+
+**Do not file a public GitHub issue for vulnerabilities.**
+
+Use **GitHub Security Advisories** at
+https://github.com/{{ github_owner }}/{{ project_slug }}/security/advisories/new to report
+privately. The repository maintainer is automatically notified.
+
+### What to include
+
+- A description of the vulnerability and its impact
+- Reproduction steps or proof-of-concept
+- The version (commit SHA or release tag) you tested against
+- Your contact info for follow-up
+
+## 3. Response targets
+
+- **Acknowledgement within 5 business days** of receipt
+- **Initial assessment within 10 business days** (severity classification, fix planning)
+- **Fix or disclosure timeline within 30 business days** for critical and high severity
+- **Coordinated disclosure** at a date you and the maintainer agree on
+
+## 4. Disclosure policy
+
+We follow **coordinated disclosure**: the reporter sends a private report; the maintainer
+acknowledges, classifies, and proposes a fix and disclosure date; both parties agree on timing;
+the fix is developed privately; on the agreed date the fix is published, a GitHub Security
+Advisory is posted with CVE assignment if eligible, and the reporter is credited unless they
+request otherwise. We will not pursue legal action against researchers who follow this policy.
+
+## 5. Enforced security checks
+
+CI and the local `just gates` suite enforce:
+
+- **No `verify=False`, `shell=True`, `eval`/`exec`, or `pickle.loads`** on untrusted input
+- **No logging of secrets, full PEMs, or full subprocess output**
+- **`bandit`** static analysis at the MEDIUM+ threshold
+- **`pip-audit`** against the dependency tree
+- **`gitleaks`** secret scan
+- **`reuse lint`** for SPDX and license metadata
+
+## 6. Security exceptions
+
+Time-bounded security exceptions are documented in `docs/decisions/` as a decision record.
+Format:
+
+```
+SECURITY EXCEPTION ACCEPTED: <rule>, because <reason>, expires <date or issue link>
+```
+
+No exception exists until it is recorded and reviewed in the pull request that introduces it.
+Permanent silent exceptions do not exist.

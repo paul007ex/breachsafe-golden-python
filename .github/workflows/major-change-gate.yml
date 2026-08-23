@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
+# Reusable change-governance gate (breachsafe-repo design §4.5, mechanism "A").
+#
+# Hard-blocks a non-surgical PR that lacks a decision record. A consumer repo
+# calls it from a thin PR workflow:
+#
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, reopened, labeled, unlabeled]
+#   jobs:
+#     major-change-gate:
+#       uses: paul007ex/breachsafe-golden-python/.github/workflows/major-change-gate.yml@v1
+#       with:
+#         loc_threshold: 150
+#         files_threshold: 8
+#         core_paths: "src/*/crypto/** **/cbom*.py .github/workflows/release*.yml"
+#
+# A diff is "non-surgical" if it is large, labelled `major`, or touches a core
+# path; if so it must carry a docs/decisions/NNNN-*.md with a scored A/B/C
+# Options table, a Steelman, and Pressure-test evidence. Machine-checks
+# structure, not quality. Needs full fetch depth so the base..head diff exists.
+
+name: major-change-gate
+
+on:
+  workflow_call:
+    inputs:
+      loc_threshold:
+        description: "Added+removed LOC above which a change is non-surgical"
+        type: number
+        required: false
+        default: 150
+      files_threshold:
+        description: "Files-changed count above which a change is non-surgical"
+        type: number
+        required: false
+        default: 8
+      core_paths:
+        description: "Space-separated globs whose match forces non-surgical"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: major-change-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  change-gate:
+    name: change-governance gate
+    # Only meaningful on PRs, where a base and head both exist.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head (full history for base..head diff)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The gate script lives in breachsafe-golden-python. Owner is always-constant
+      # and hardcoded per design §4.1.
+      - name: Checkout breachsafe-golden-python gate script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: paul007ex/breachsafe-golden-python
+          ref: v1
+          path: .bqp-common
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Run change-governance gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+          CORE_PATHS: ${{ inputs.core_paths }}
+        run: |
+          # Make sure the base commit is present for the base...head diff.
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" || true
+
+          label_arg=()
+          case " $PR_LABELS " in
+            *" major "*) label_arg=(--label major) ;;
+          esac
+
+          core_args=()
+          for glob in $CORE_PATHS; do
+            core_args+=(--core-paths "$glob")
+          done
+
+          python3 .bqp-common/quality-gates/check_major_change.py \
+            --base-ref "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --loc-threshold "${{ inputs.loc_threshold }}" \
+            --files-threshold "${{ inputs.files_threshold }}" \
+            "${label_arg[@]}" \
+            "${core_args[@]}"

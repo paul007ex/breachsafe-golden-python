@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Duplicate-code gate — fails a PR when copy-paste duplication in the tracked
+# tooling code (release/, quality-gates/, testing/) exceeds the tuned threshold,
+# so shared BQP tooling does not silently accumulate clones. Token-level
+# detection (jscpd) catches literal/near-literal clones across Python, shell,
+# and YAML; semantic duplication (same logic, different names) is the reviewer's
+# job. Config + ignore globs live in .jscpd.json.
+#
+# Mirrors breachsafe/qureddy's #314 jscpd gate, adapted to this repo's layout:
+# there is no single src/ dir, so the three first-party code directories are
+# scanned explicitly.
+
+name: duplicate-code
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "release/**"
+      - "quality-gates/**"
+      - "testing/**"
+      - ".jscpd.json"
+      - ".github/workflows/duplicate-code.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: duplicate-code-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  jscpd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "20"
+
+      - name: Detect duplicated code (jscpd)
+        run: npx --yes jscpd@4 release/ quality-gates/ testing/ --config .jscpd.json

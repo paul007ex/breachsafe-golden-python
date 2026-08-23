@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: {{ license }}
+"""Command-line entry point for {{ project_name }}."""
+
+from __future__ import annotations
+
+import argparse
+
+from {{ module_name }} import __version__, greeting
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the {{ project_slug }} command-line interface.
+
+    Args:
+        argv: Argument vector (defaults to ``sys.argv[1:]``). Pass an explicit
+            list in tests so parsing is hermetic.
+
+    Returns:
+        The process exit code; ``0`` indicates success.
+    """
+    parser = argparse.ArgumentParser(
+        prog="{{ project_slug }}",
+        description="{{ description }}",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    parser.parse_args(argv)
+    print(greeting("{{ project_name }}"))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

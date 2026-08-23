@@ -1,0 +1,51 @@
+<!-- SPDX-License-Identifier: {{ license }} -->
+# {{ project_name }} — code-review bar
+
+The AI reviewer (`.github/workflows/ai-code-review.yml`, advisory) and every human
+reviewer use this bar. It is the BreachSAFE Quantum Platform (BQP) standard, tuned
+for {{ project_name }}. The review is **advisory**: it never blocks a merge on its
+own. The blocking gates are `just gates` / the reusable `quality-gates-python.yml`
+and the change-governance gate.
+
+## Severity definitions
+
+| Severity | Meaning | Reviewer action |
+|---|---|---|
+| **Critical** | Memory-unsafety, auth/authz bypass, secret exposure, a crypto-correctness error, or remote code execution. | Must fix before merge. Never advisory. |
+| **Important** | A real correctness bug, a missing validation on an untrusted boundary, a silently-swallowed error, or a security-relevant regression (dropped fuzzing, lowered coverage, unsigned release). | Fix before merge unless explicitly deferred with a tracked issue. |
+| **Minor** | Style beyond the linters, naming, small duplication, a weak test. | Fix when cheap; may defer. |
+| **Nit** | Subjective/cosmetic. | Optional. |
+
+Report the severity, the file:line, the concrete failure, and the smallest fix.
+Do not pad the review with praise or restate the diff.
+
+## Scope — what to skip
+
+- **Generated and lock files:** `uv.lock`, `*.lock`, `dist/`, `.copier-answers.yml`,
+  anything under a `generated/` path, and vendored `third_party/` code. Do not review
+  machine-authored or upstream-owned content.
+- **Pure formatting** already enforced by `ruff format` — the formatter owns it.
+
+## BQP-specific bars (enforce these)
+
+1. **New parser / untrusted-input boundary must ship a fuzz harness.** Any new code
+   that parses or validates untrusted input (CBOM, scan JSON, tool output, a config
+   file, network bytes) requires a matching fuzz target under `tests/fuzz/` in the
+   same PR. A new boundary with no fuzz harness is an **Important** finding.
+2. **No PII in logs.** Flag any log/trace/exception that could emit personal data,
+   secrets, tokens, or full request/response bodies. Secrets or PII in a log line is
+   **Critical**. Logs must be structured and redacted at the boundary.
+3. **Errors fail closed at boundaries.** A parse/validate/adapter/subprocess boundary
+   must raise a typed error and exit on the mapped code — never return empty/None on
+   failure (a "success with no findings" that was actually an error). Swallowed errors
+   are **Important**.
+4. **Change-governance decision record for non-surgical changes.** If the diff is
+   non-surgical (> ~150 LOC or > ~8 files, or labelled `major`, or touching a core
+   path), confirm a `docs/decisions/NNNN-*.md` exists with `## Options` (A/B/C scored),
+   `## Steelman`, and `## Pressure-test evidence`. A missing/malformed record is an
+   **Important** finding (the CI `major-change-gate` blocks it regardless).
+5. **No quality-theater tests.** A test that asserts nothing meaningful, or that never
+   exercises the failure path it claims to cover, is worse than no test — call it out.
+6. **License/SPDX hygiene.** New first-party files carry the correct
+   `SPDX-License-Identifier` ({{ license }} for this repo). Never silently introduce a
+   different license header.

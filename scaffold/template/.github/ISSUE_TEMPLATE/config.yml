@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://www.breachsafe.io/security
+    about: Report security issues privately. Never file a public issue for a vulnerability. See SECURITY.md for the private disclosure process.
+  - name: Project home
+    url: https://www.breachsafe.io
+    about: Learn more about BreachSAFE and the Quantum Platform.

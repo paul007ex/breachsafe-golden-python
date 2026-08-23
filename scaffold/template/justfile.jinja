@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: {{ license }}
+# Common dev commands. Run `just` to list, `just <task>` to invoke.
+# Install just: https://github.com/casey/just
+
+set shell := ["bash", "-cu"]
+
+# Default: list available tasks.
+default:
+    @just --list
+
+# Create the dev virtual environment with uv.
+setup:
+    uv venv --python {{ python_version }}
+    uv pip install -e ".[dev]"
+
+# Refresh the uv.lock lockfile. Commit the result: CI runs `uv sync --locked`
+# and OpenSSF Scorecard's Pinned-Dependencies check requires a committed lock.
+lock:
+    uv lock
+
+# Run the full local gate suite (mirrors CI).
+gates: lint format-check typecheck arch test quality bandit pip-audit reuse-lint
+
+# Lint.
+lint:
+    uv run ruff check .
+
+# Verify formatting (does NOT rewrite). Use `just format` to rewrite.
+format-check:
+    uv run ruff format --check .
+
+# Rewrite formatting. Use only when explicitly doing a formatting-only task.
+format:
+    uv run ruff format .
+
+# Strict type check.
+typecheck:
+    uv run mypy src/{{ module_name }} --strict
+
+# Architecture / import-boundary gate (import-linter contracts in pyproject.toml).
+arch:
+    uv run lint-imports
+
+# Run the test suite with coverage (unit + hypothesis property tests).
+# Emits Allure results to .allure-results on EVERY run (pyproject addopts --alluredir).
+test:
+    uv run pytest
+
+# Black-box CLI tests against the installed console script (bats-core).
+# bats is provided by the breachsafe-container image; locally: brew install bats-core.
+test-cli:
+    bats tests/cli
+
+# Run the suite (auto-emits Allure results) then open the Allure viewer.
+# allure CLI is bundled in the breachsafe-container/workbench image.
+test-report: test
+    allure serve .allure-results
+
+# Opt-in mutation testing. Run against security/validation-critical modules to
+# prove the tests actually kill mutants; slow, so it is not part of `gates`.
+mutate:
+    uv run mutmut run
+
+# Tuned MAX code-quality gate: duplication, complexity, dead code, docstrings.
+# Local mirror of the reusable quality-gates-python.yml static extras. jscpd is
+# BLOCKING (needs Node/npx); interrogate is advisory (never fails the recipe).
+quality:
+    npx --yes jscpd@4 --config .jscpd.json .
+    uv run xenon --max-absolute B --max-modules A --max-average A src/{{ module_name }}
+    uv run refurb src/{{ module_name }}
+    uv run vulture src/{{ module_name }} .vulture-allowlist.py --min-confidence 80
+    -uv run interrogate -v src/{{ module_name }}
+    uv run pylint --disable=all --enable=duplicate-code src/{{ module_name }}
+
+# Static security analysis (fails on MEDIUM+).
+bandit:
+    uv run bandit -r -ll src/{{ module_name }}
+
+# Known-vulnerable dependency scan.
+pip-audit:
+    uv run pip-audit
+
+# Verify SPDX headers / license metadata on all files.
+reuse-lint:
+    uv run reuse lint
+
+# Secret scan. Requires gitleaks installed externally; falls back to trufflehog.
+secrets:
+    @if command -v gitleaks > /dev/null; then \
+        gitleaks detect --no-git --source . --redact; \
+    elif command -v trufflehog > /dev/null; then \
+        trufflehog filesystem --no-update .; \
+    else \
+        echo "neither gitleaks nor trufflehog installed; install one"; \
+        exit 1; \
+    fi
+
+# Local pre-release pre-flight: build the distribution, validate its metadata,
+# and re-check license/SPDX compliance. The actual publish is the reusable
+# release-python.yml workflow; this recipe is the fail-fast local mirror.
+release-gate:
+    uv build
+    uvx --from twine twine check dist/*
+    uv run reuse lint
+
+# (Re)install the skill set from the canonical skills library against
+# skills.manifest.yaml. Skills now live in breachsafe-common/skills; override the
+# location with BREACHSAFE_SKILLS_DIR (e.g. a custom checkout path).
+skills-sync:
+    python "${BREACHSAFE_SKILLS_DIR:-../breachsafe-common/skills}/scripts/install.py" {{ project_slug }} --manifest skills.manifest.yaml
+
+# Pull upstream template changes (drift control).
+template-update:
+    uvx copier update --trust

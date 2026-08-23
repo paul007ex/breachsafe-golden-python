@@ -1,0 +1,219 @@
+# SPDX-License-Identifier: {{ license }}
+# Release metadata and quality-tool configuration for {{ project_name }}.
+# Generated from breachsafe-repo. Keep this table aligned with the tested wheel.
+
+[project]
+name = "{{ project_slug }}"
+version = "0.0.1"
+description = "{{ description }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+license = "{{ license }}"
+license-files = ["LICENSE", "LICENSES/*"]
+authors = [{ name = "BreachSAFE {{ project_name }} contributors" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    # No `License ::` trove classifiers: PEP 639 forbids pairing them with the
+    # SPDX `license` string above, and newer build backends reject the combo.
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: {{ python_version }}",
+]
+dependencies = []
+
+[project.optional-dependencies]
+# Enterprise-grade gates from day 0. Installed via `uv pip install -e '.[dev]'`.
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",         # property-based testing
+    "allure-pytest>=2.13",       # rich test reporting (viewer in the workbench image)
+    "import-linter>=2.0",        # architecture / import-boundary contracts
+    "mutmut>=3.0",               # opt-in mutation testing (see `just mutate`)
+    "ruff>=0.15,<0.17",
+    "mypy>=1.10",
+    "bandit>=1.7",
+    "pip-audit>=2.7",
+    "reuse>=4.0",
+    # Tuned MAX code-quality gate (`just quality`). jscpd is Node-based (run via
+    # npx / the container), so it is intentionally not a Python dependency here.
+    "xenon>=0.9",           # cyclomatic-complexity ceiling (wraps radon)
+    "radon>=6.0",           # complexity/maintainability metrics (xenon backend)
+    "refurb>=2.0",          # Python modernization lints (blocking)
+    "vulture>=2.11",        # dead-code detection (see .vulture-allowlist.py)
+    "interrogate>=1.7",     # docstring-coverage (advisory)
+    "diff-cover>=9.0",      # 100% coverage on changed lines
+    "pylint>=3.2",          # duplicate-code check (R0801)
+]
+# Coverage-guided fuzzing of untrusted-input parsers. Fuzz-only and optional:
+# atheris ships amd64-Linux wheels ONLY, so it is never in the `dev` extra or
+# the release gate. atheris>=3.1 is required for a cp314 wheel (3.0.0 has none).
+fuzz = [
+    "atheris>=3.1",
+]
+
+[project.scripts]
+{{ project_slug }} = "{{ module_name }}.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/{{ github_owner }}/{{ project_slug }}"
+Repository = "https://github.com/{{ github_owner }}/{{ project_slug }}"
+Issues = "https://github.com/{{ github_owner }}/{{ project_slug }}/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ module_name }}"]
+
+# ============================================================================
+# ruff
+# ============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py{{ python_version | replace('.', '') }}"
+src = ["src", "tests"]
+# The vulture allow-list uses bare-name references (vulture's whitelist format);
+# they are not real code, so keep them out of ruff's undefined-name checks.
+extend-exclude = [".vulture-allowlist.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "S",    # flake8-bandit (security)
+    "SIM",  # flake8-simplify
+    "TC",   # flake8-type-checking
+    "RUF",  # ruff-specific
+    "PL",   # pylint
+    "PT",   # pytest style
+    "RET",  # flake8-return
+    "ARG",  # flake8-unused-arguments
+    "DTZ",  # flake8-datetimez (timezone-aware datetime)
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate (no commented-out code)
+    "INP",  # implicit namespace package
+    "BLE",  # flake8-blind-except
+    "SLF",  # flake8-self (private-member access)
+    "D",    # pydocstyle — Google docstring convention
+]
+ignore = [
+    "E501",  # line-too-long, handled by the formatter
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+# Functions <= 30 lines norm, 50 ceiling (statements is a close proxy).
+max-statements = 50
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",     # asserts allowed in tests
+    "PLR2004",  # magic numbers allowed in tests
+    "ARG",      # unused args allowed in fixtures
+    "D",        # test names document intent; no public-API surface
+    "INP001",   # tests/ is intentionally not an importable package
+]
+
+# ============================================================================
+# mypy
+# ============================================================================
+[tool.mypy]
+python_version = "{{ python_version }}"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# ============================================================================
+# pytest + coverage
+# ============================================================================
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov={{ module_name }}",
+    "--cov-report=term-missing",
+    "--cov-fail-under={{ coverage_min }}",
+    # Allure results emitted on EVERY run (view with `allure serve .allure-results`;
+    # the allure CLI ships in the breachsafe-container/workbench image). allure-pytest
+    # is a dev dep, so this is always available where tests run.
+    "--alluredir=.allure-results",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["{{ module_name }}"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+fail_under = {{ coverage_min }}
+show_missing = true
+
+# ============================================================================
+# bandit
+# ============================================================================
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+# ============================================================================
+# import-linter (architecture / import-boundary gate) — `just arch`
+# ============================================================================
+# Enforces the intended dependency direction so the package cannot rot into a
+# tangle as it grows. This starter contract PASSES for the minimal scaffold
+# (only `__main__` exists; the lower layers are optional until you add them).
+#
+# To extend as the package grows:
+#   * Drop the parentheses to make a layer REQUIRED once it exists, e.g. add a
+#     `{{ module_name }}.core` module then change "({{ module_name }}.core)" to
+#     "{{ module_name }}.core". Higher layers may import lower ones; a lower
+#     layer importing a higher one then fails the gate.
+#   * For sibling packages that must NOT know about each other, add a second
+#     contract of `type = "independence"`, e.g.:
+#       [[tool.importlinter.contracts]]
+#       name = "Adapters are independent"
+#       type = "independence"
+#       modules = ["{{ module_name }}.adapters.tls", "{{ module_name }}.adapters.ssh"]
+[tool.importlinter]
+root_package = "{{ module_name }}"
+
+[[tool.importlinter.contracts]]
+name = "{{ project_name }} layered architecture"
+type = "layers"
+# Top-to-bottom: higher layers may import lower, never the reverse. Layers in
+# parentheses are optional — absent modules are skipped, not errors — so this
+# contract is satisfied by the minimal scaffold and tightens as you add layers.
+layers = [
+    "{{ module_name }}.__main__",
+    "({{ module_name }}.cli)",
+    "({{ module_name }}.core)",
+]

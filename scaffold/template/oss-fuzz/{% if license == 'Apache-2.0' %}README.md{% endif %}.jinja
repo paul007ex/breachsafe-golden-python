@@ -1,0 +1,40 @@
+<!-- SPDX-License-Identifier: {{ license }} -->
+
+# {{ project_name }} — Google OSS-Fuzz onboarding
+
+This directory stages the files for hosted, continuous fuzzing on
+[Google OSS-Fuzz](https://google.github.io/oss-fuzz/). It exists **only in
+Apache-2.0 repos**: OSS-Fuzz accepts open-source projects only, so PolyForm-
+Noncommercial repos are ineligible and rely on ClusterFuzzLite alone (per-PR, in
+CI — see `tests/fuzz/README.md`). The same `tests/fuzz/fuzz_*.py` harnesses feed
+both tiers.
+
+## Contents
+
+| File | Purpose |
+| --- | --- |
+| `project.yaml` | OSS-Fuzz project metadata: language, `main_repo`, `primary_contact`, sanitizers (address + undefined), libFuzzer engine. |
+| `Dockerfile` | Build image from `gcr.io/oss-fuzz-base/base-builder-python`. |
+| `build.sh` | Installs `.[fuzz]` and runs `compile_python_fuzzer` over every harness. |
+
+## One-time onboarding (do this ONCE per repo)
+
+1. Confirm this repo is genuinely public and Apache-2.0. Non-OSS repos are not accepted.
+2. Fork [`google/oss-fuzz`](https://github.com/google/oss-fuzz) and create
+   `projects/{{ project_slug }}/`.
+3. Copy the three files from this directory into that folder:
+   `project.yaml`, `Dockerfile`, `build.sh`.
+4. In the copied `Dockerfile`, replace `COPY . $SRC/project` with
+   `RUN git clone --depth 1 https://github.com/{{ github_owner }}/{{ project_slug }} $SRC/project`
+   so the hosted builder clones the repo (the COPY form is only for local
+   `infra/helper.py build_fuzzers {{ project_slug }}` testing).
+5. Verify locally before opening the PR:
+   ```bash
+   python infra/helper.py build_fuzzers --sanitizer address {{ project_slug }}
+   python infra/helper.py check_build {{ project_slug }}
+   ```
+6. Open the onboarding PR to `google/oss-fuzz`. Once merged, OSS-Fuzz fuzzes the
+   harnesses continuously and emails `primary_contact` on findings.
+
+After onboarding, new harnesses added under `tests/fuzz/` are picked up
+automatically — no further OSS-Fuzz PR is needed.

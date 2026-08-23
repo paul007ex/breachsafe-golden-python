@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# REUSE annotations for breachsafe-repo itself (the template project). Every
+# template file — the .jinja sources, the verbatim static files, and the
+# vendored license texts under template/LICENSES — is a BreachSAFE first-party
+# artifact under PolyForm-Noncommercial-1.0.0. The license a *generated* repo
+# ends up under is chosen at copier time via the `license` question and is
+# unrelated to this annotation.
+version = 1
+SPDX-PackageName = "breachsafe-repo"
+SPDX-PackageSupplier = "BreachSAFE <security@breachsafe.io>"
+
+[[annotations]]
+path = "**"
+SPDX-FileCopyrightText = "BreachSAFE"
+SPDX-License-Identifier = "PolyForm-Noncommercial-1.0.0"

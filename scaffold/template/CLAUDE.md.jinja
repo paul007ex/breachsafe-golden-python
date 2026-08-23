@@ -1,0 +1,172 @@
+<!-- SPDX-FileCopyrightText: BreachSAFE -->
+<!-- SPDX-License-Identifier: {{ license }} -->
+# CLAUDE.md — {{ project_name }}
+
+This file guides Claude Code (and any AI agent) working in this repository. It was
+generated from `{{ github_owner }}/breachsafe-golden-python/scaffold` (copier). Do not hand-edit the
+GENERATED sections; run `just template-update` to pull upstream template changes.
+
+## STOP — read these before you touch anything
+
+You are not done onboarding until you have **opened and read** every item below and can
+**state what each one says**. Not "I am familiar with this". Not "standard practice". The
+files are short and they contradict generic defaults in ways that will make your first
+change wrong if you skim them.
+
+Before your first edit in this repo, say out loud:
+
+1. what the licence is here and what header a new file gets;
+2. which command runs the gates, and what its coverage floor is;
+3. one rule from the remediation procedure you would otherwise have broken.
+
+If you cannot answer those from having read the files, you have not read them.
+
+### Required reading, in order
+
+| # | Read | Why it is not optional |
+|---|---|---|
+| 1 | **This entire file** | The invariants below are inherited and not open to relitigation |
+| 2 | `~/claude/CLAUDE.md` (platform, auto-loads) | Cross-repo policy: licensing, OpenSSL 3.5 LTS baseline, canonical remotes. Where it conflicts with this file, **this file wins for this repo** and the conflict is named here |
+| 3 | `breachsafe-common/skills/skills/breachsafe-implement/references/remediation-procedure.md` | The 8-step issue-to-main procedure and the evidence each step owes. Report `N/8`. Do not invent your own workflow |
+| 4 | `.github/PULL_REQUEST_TEMPLATE.md` | What evidence a PR must carry. Filling it in afterwards from memory is how unreported red gates happen |
+| 5 | `justfile` | The **actual** gate commands. Do not guess them, and do not run a subset and call it "the gates" |
+| 6 | `docs/decisions/` (if present) | Accepted decisions. Re-opening one without reading it wastes a review cycle |
+| 7 | The skills named in `skills.manifest.yaml` | They encode failures already paid for once |
+
+### Things agents get wrong here specifically
+
+- **Claiming a fix is shipped when it is merged.** Merged is not released; released is not
+  published. Verify the artifact — pull the image, resolve the tag, read the version back.
+- **Running gates in the shared checkout** while another stream commits to it. Isolate in
+  `/tmp` first (step 3).
+- **Summarising a gate instead of quoting it.** `132 passed, 90.53%` is evidence.
+  "tests pass" is an assertion, and it has been wrong.
+- **A gate that inspected nothing is not a pass.** Check the input count before believing
+  the exit code.
+- **Adding a second mechanism** — a parser, a config, a gate — where one already exists.
+  Look first.
+
+## What this repo is
+{{ description }}
+
+- Archetype: `{{ project_type }}`
+- Distribution / repo name: `{{ project_slug }}`
+- Python import name: `{{ module_name }}`
+- Python baseline: `{{ python_version }}`
+
+## Standing invariants (inherited — do not relitigate)
+
+- **License.** Every first-party file carries an `SPDX-License-Identifier` header set to
+  `{{ license }}`.
+{%- if license == "Apache-2.0" %}
+  This repo is a **deliberate, reviewed Apache-2.0 exception** to the platform PolyForm
+  default: it is genuinely open source. Keep `LICENSE`, `NOTICE` (if present), and the
+  `REUSE.toml` annotation Apache-consistent. Preserve upstream notices on any vendored code.
+{%- else %}
+  This repo is **source-available for non-commercial use (PolyForm-Noncommercial-1.0.0)**.
+  It is **not** open source. Never emit Apache/MIT headers, never call it "open source", and
+  never relicense without an escalated, logged decision. Third-party/vendored material keeps
+  its original license — never relabel it.
+{%- endif %}
+- **Python {{ python_version }}** for every command, venv, hook, script, and test. No fallback
+  to system Python. `requires-python = ">={{ python_version }}"`; there is no 3.12 fallback —
+  fix forward if a dependency breaks.
+- **Issue-driven, branch + PR only.** Open an issue first for non-trivial work; branch from
+  `main`; never commit directly to `main`. One thing per PR.
+- **Quality gates are not theater.** Never lower a coverage floor, skip a test, add a blanket
+  `noqa`, or weaken a gate to make it pass. A red gate is a bug to fix, not a baseline to accept.
+
+## Standing process rules (enforced by the change-governance gate, not left to hope)
+
+1. **Pressure-test in an isolated `/tmp` workstream**, never the shared checkout. HEAD-race with
+   background agents corrupts the working tree; prove a change in `/tmp` (a throwaway clone or
+   `git worktree`) before touching the real repo.
+2. **Any non-surgical change requires a decision record before code.** "Non-surgical" = diff
+   > ~150 LOC or > ~8 files, OR labelled `major`, OR touching a designated core path. The record
+   lives in `docs/decisions/NNNN-*.md` (copy `docs/decisions/TEMPLATE.md`) and MUST contain a
+   scored **A/B/C options comparison**, a **steelman** of the rejected options, and
+   **pressure-test evidence** (log/link from the `/tmp` run). CI blocks the PR if it is missing
+   or malformed.
+3. **Major decisions get the A/B/C rating up front.** Before any large rewrite or new dependency,
+   score the alternatives and record the winner — do not start typing the rewrite first.
+
+## Build / test / gate commands
+
+```
+just gates          # full local gate suite (mirrors CI): lint, format, type, arch, test, sast, deps, reuse
+just lint           # ruff check .
+just format-check   # ruff format --check .
+just typecheck      # mypy src/{{ module_name }} --strict
+just arch           # import-linter architecture / import-boundary contracts
+just test           # pytest --cov={{ module_name }} --cov-fail-under={{ coverage_min }} (unit + property)
+just test-cli       # bats black-box CLI tests against the installed console script
+just test-report    # pytest with Allure results (.allure-results)
+just mutate         # opt-in mutation testing (mutmut) for security/validation code
+just bandit         # bandit SAST
+just pip-audit      # known-vulnerable dependency scan
+just reuse-lint     # SPDX / license-header compliance
+just secrets        # gitleaks secret scan
+just release-gate   # local pre-release pre-flight: uv build + twine check + reuse lint
+just skills-sync    # (re)install the skill set from the canonical skills library
+just template-update# copier update — pull upstream template changes
+```
+
+Single test: `uv run pytest tests/test_smoke.py::test_main_returns_zero -q`
+
+## Test harness
+
+The scaffold ships a layered, mostly-black-box harness. Add to the tier that fits;
+never weaken a floor to make a run green.
+
+- **Unit** (`tests/test_*.py`, pytest) — fast, hermetic; the coverage floor
+  (`--cov-fail-under={{ coverage_min }}`) is enforced here and in CI.
+- **Property** (`tests/property/`, hypothesis) — invariants over generated inputs for pure
+  functions (parsers, normalizers, encoders). State the invariant; let hypothesis break it.
+- **Black-box CLI** (`tests/cli/*.bats`, bats-core) — drives the INSTALLED console script
+  `{{ project_slug }}` (`--help` / `--version` / default) and asserts exit code + output.
+  `just test-cli`. bats comes from the breachsafe-container image (`brew install bats-core`
+  locally).
+- **Architecture** (import-linter, `[tool.importlinter]` in `pyproject.toml`) — enforces the
+  import-boundary contracts. `just arch`.
+- **Reporting** (allure-pytest) — `just test-report` writes `.allure-results`; view with the
+  Allure CLI bundled in the workbench image (`allure serve .allure-results`).
+- **Fuzzing** (atheris, `tests/fuzz/`) — coverage-guided fuzzing of untrusted-input parsers;
+  see `tests/fuzz/README.md`.
+- **Mutation** (mutmut, opt-in) — `just mutate` proves the tests actually kill mutants; run it
+  against security/validation-critical modules. Slow, so it is not part of `just gates`.
+
+## CI
+
+CI (`.github/workflows/ci.yml`) is a thin, **verbatim** (never Jinja-templated) shell: a
+`load-config` job reads `.github/bqp.env` and passes `module` / `coverage_min` / `container_tag`
+into the reusable quality-gate workflow
+`{{ github_owner }}/breachsafe-golden-python/.github/workflows/quality-gates-python.yml@{{ golden_ref }}`,
+which runs inside `ghcr.io/{{ github_owner }}/breachsafe-container:{{ container_tag }}`. A fix to
+the gate logic lands once in breachsafe-golden-python and every repo inherits it on the next run.
+Release is `.github/workflows/release.yml` (reusable `release-python.yml` — fail-closed gate, OIDC
+publish, cosign, SLSA attestation).
+
+## Security posture (OpenSSF Scorecard)
+
+The repo ships a self-contained security-posture layer, all SHA-pinned and least-privilege:
+
+- **OpenSSF Scorecard** (`.github/workflows/scorecard.yml`) — weekly + on `branch_protection_rule`;
+  `publish_results: true` (needs a **public** repo). SARIF goes to the Security tab.
+- **CodeQL** (`.github/workflows/codeql.yml`) — `security-extended` on push, PR, and weekly.
+- **Fuzzing** — shared Atheris harnesses in `tests/fuzz/` feed two tiers:
+  1. **ClusterFuzzLite** (`.github/workflows/cifuzz.yml` + `.clusterfuzzlite/`) runs in EVERY repo,
+     per-PR, bounded, advisory (amd64 — atheris ships amd64-Linux wheels only).
+  2. **Google OSS-Fuzz** (`oss-fuzz/`, generated for Apache repos only) — hosted continuous
+     fuzzing. Requires a **one-time onboarding PR to google/oss-fuzz**; PolyForm repos are
+     ineligible (OSS-Fuzz is OSS-only) and rely on ClusterFuzzLite. Write a harness once; both
+     tiers consume it. Add one `fuzz_*.py` per untrusted-input boundary. See `tests/fuzz/README.md`.
+- **Pinned dependencies.** Commit `uv.lock` (run `just lock`). Scorecard's Pinned-Dependencies
+  check and CI's `uv sync --locked` both require a committed lockfile.
+- **Branch protection** is scored by Scorecard; apply it as code with
+  `breachsafe-golden-python/quality-gates/set_branch_protection.py` (requires a public repo or GitHub Pro).
+
+## Skills (smart-Claude-on-day-one)
+
+Canonical skills come from `{{ github_owner }}/breachsafe-common/skills` — edit them there and
+re-sync, never edit installed copies. The default `{{ project_type }}` manifest is `skills.manifest.yaml`.
+Install/refresh with `just skills-sync`; drift is checked in CI.

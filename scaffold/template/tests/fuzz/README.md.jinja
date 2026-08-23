@@ -1,0 +1,51 @@
+<!-- SPDX-License-Identifier: {{ license }} -->
+
+# {{ project_name }} fuzzing
+
+Coverage-guided [Atheris](https://github.com/google/atheris) fuzz harnesses for
+the parsers in `{{ module_name }}` that consume untrusted external input.
+Fuzzing feeds the OpenSSF Scorecard "Fuzzing" signal.
+
+## The fuzzing model
+
+Harnesses are written ONCE here and consumed by two tiers:
+
+| Tier | Scope | Where |
+| --- | --- | --- |
+| **ClusterFuzzLite** | all repos, per-PR bounded run in CI | `.github/workflows/cifuzz.yml` + `.clusterfuzzlite/` |
+| **Google OSS-Fuzz** | Apache/OSS repos only, hosted continuous fuzzing | `oss-fuzz/` (one-time onboarding PR to google/oss-fuzz) |
+
+OSS-Fuzz only accepts open-source projects, so the `oss-fuzz/` directory is
+generated **only for Apache-2.0 repos**. PolyForm-Noncommercial repos get
+ClusterFuzzLite alone.
+
+## Conventions
+
+`atheris` is an optional, fuzz-only dependency (`pip install '.[fuzz]'`): it is
+NOT in the `dev` extra or the release gate, and it ships amd64-Linux wheels
+only. Harness files are named `fuzz_*.py`, so `pytest` never collects them, and
+every harness imports `atheris` behind a guard so the module still imports where
+`atheris` is absent. `.clusterfuzzlite/build.sh` compiles every
+`tests/fuzz/fuzz_*.py` automatically — add one harness per untrusted-input
+boundary.
+
+## Run a harness locally
+
+Atheris requires Linux with Clang and an amd64 host.
+
+```bash
+# Install the fuzz-only dependency group.
+uv pip install -e '.[fuzz]'
+
+# Fuzz one parser for 60 seconds.
+python tests/fuzz/fuzz_target.py -max_total_time=60
+
+# Reproduce a crash from a saved input.
+python tests/fuzz/fuzz_target.py path/to/crash-input
+```
+
+## ClusterFuzzLite in CI
+
+Pull requests that touch `src/`, the harnesses, or the fuzzing setup run a
+short, bounded ClusterFuzzLite session via `.github/workflows/cifuzz.yml`. The
+build image and build script live under `.clusterfuzzlite/`.

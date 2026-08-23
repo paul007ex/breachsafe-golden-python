@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: {{ license }}
+"""Property-based tests for {{ project_name }} pure functions.
+
+These use hypothesis to assert invariants that must hold for ALL inputs, not
+just the hand-picked examples in the unit tests. Use this file as the template
+for property-testing real pure functions (parsers, normalizers, encoders) as
+the package grows: state the invariant, let hypothesis try to break it.
+"""
+
+from __future__ import annotations
+
+from hypothesis import given
+from hypothesis import strategies as st
+
+from {{ module_name }} import greeting
+
+
+@given(name=st.text())
+def test_greeting_contains_name(name: str) -> None:
+    """The greeting always embeds the supplied name verbatim."""
+    assert name in greeting(name)
+
+
+@given(name=st.text())
+def test_greeting_is_prefixed(name: str) -> None:
+    """The greeting always starts with the fixed 'hello, ' prefix."""
+    assert greeting(name).startswith("hello, ")
