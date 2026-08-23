@@ -44,6 +44,13 @@ dev = [
     "diff-cover>=9.0",      # 100% coverage on changed lines
     "pylint>=3.2",          # duplicate-code check (R0801)
 ]
+# Coverage-guided fuzzing of untrusted-input parsers. Fuzz-only and optional:
+# atheris ships amd64-Linux wheels ONLY, so it is never in the `dev` extra or
+# the release gate. atheris>=3.1 is required for a cp314 wheel (3.0.0 has none).
+fuzz = [
+    "atheris>=3.1",
+]
+
 [project.scripts]
 {{ project_slug }} = "{{ module_name }}.__main__:main"
 

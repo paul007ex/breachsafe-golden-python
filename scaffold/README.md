@@ -106,7 +106,7 @@ LICENSE, LICENSES/, REUSE.toml, NOTICE-free SPDX headers
   ISSUE_TEMPLATE/             bug_report, feature_request, config
   CODEOWNERS
 SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md
-REVIEW.md                     BQP code-review bar (severity defs, PII/governance rules)
+REVIEW.md                     BQP code-review bar (severity defs, fuzz/PII/governance rules)
 skills.manifest.yaml          default python-cli skill set (installed from breachsafe-common/skills)
 src/<module>/{__init__,__main__}.py
 tests/{conftest,test_smoke}.py

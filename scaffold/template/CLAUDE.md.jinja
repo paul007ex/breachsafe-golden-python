@@ -130,6 +130,8 @@ never weaken a floor to make a run green.
   import-boundary contracts. `just arch`.
 - **Reporting** (allure-pytest) — `just test-report` writes `.allure-results`; view with the
   Allure CLI bundled in the workbench image (`allure serve .allure-results`).
+- **Fuzzing** (atheris, `tests/fuzz/`) — coverage-guided fuzzing of untrusted-input parsers;
+  see `tests/fuzz/README.md`.
 - **Mutation** (mutmut, opt-in) — `just mutate` proves the tests actually kill mutants; run it
   against security/validation-critical modules. Slow, so it is not part of `just gates`.
 
@@ -151,6 +153,13 @@ The repo ships a self-contained security-posture layer, all SHA-pinned and least
 - **OpenSSF Scorecard** (`.github/workflows/scorecard.yml`) — weekly + on `branch_protection_rule`;
   `publish_results: true` (needs a **public** repo). SARIF goes to the Security tab.
 - **CodeQL** (`.github/workflows/codeql.yml`) — `security-extended` on push, PR, and weekly.
+- **Fuzzing** — shared Atheris harnesses in `tests/fuzz/` feed two tiers:
+  1. **ClusterFuzzLite** (`.github/workflows/cifuzz.yml` + `.clusterfuzzlite/`) runs in EVERY repo,
+     per-PR, bounded, advisory (amd64 — atheris ships amd64-Linux wheels only).
+  2. **Google OSS-Fuzz** (`oss-fuzz/`, generated for Apache repos only) — hosted continuous
+     fuzzing. Requires a **one-time onboarding PR to google/oss-fuzz**; PolyForm repos are
+     ineligible (OSS-Fuzz is OSS-only) and rely on ClusterFuzzLite. Write a harness once; both
+     tiers consume it. Add one `fuzz_*.py` per untrusted-input boundary. See `tests/fuzz/README.md`.
 - **Pinned dependencies.** Commit `uv.lock` (run `just lock`). Scorecard's Pinned-Dependencies
   check and CI's `uv sync --locked` both require a committed lockfile.
 - **Branch protection** is scored by Scorecard; apply it as code with

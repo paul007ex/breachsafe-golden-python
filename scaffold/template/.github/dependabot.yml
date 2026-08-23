@@ -76,3 +76,33 @@ updates:
           - "patch"
 
   # ---------------------------------------------------------------------------
+  # Docker base images for the fuzzing harnesses (.clusterfuzzlite/Dockerfile
+  # and, on Apache renders, oss-fuzz/Dockerfile). These derive FROM the
+  # ClusterFuzzLite / OSS-Fuzz base images, which policy keeps on a floating
+  # `latest` tag; dependabot still opens PRs for any pinned FROM refs added
+  # later. A directory with no Dockerfile is simply skipped, so listing both is
+  # safe on non-Apache renders where oss-fuzz/ has no Dockerfile.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: docker
+    directories:
+      - "/.clusterfuzzlite"
+      - "/oss-fuzz"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - docker
+    commit-message:
+      prefix: "build"
+      include: scope
+    groups:
+      docker-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
