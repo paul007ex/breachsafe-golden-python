@@ -94,6 +94,13 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -o pipefail
+          # The job container runs as root (see the container options above) while
+          # the runner owns $GITHUB_WORKSPACE as uid 1001. git refuses to operate on
+          # a repo it considers owned by someone else:
+          #   fatal: detected dubious ownership in repository at '/__w/<repo>/<repo>'
+          # The unit-test job already does this; the static job did not, so the
+          # anti-pattern gate died with exit 128 on the first live consumer run.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           if ! git rev-parse --verify --quiet "$BASE_SHA^{commit}" >/dev/null; then
             git fetch --no-tags --depth=1 origin \
               "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
