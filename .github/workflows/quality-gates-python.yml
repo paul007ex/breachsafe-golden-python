@@ -170,6 +170,14 @@ jobs:
           python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_python_floor.py \
             --pyproject pyproject.toml
 
+      # golden-python#19 / breachsafe-common#57. Structure only, not prose: both files present,
+      # each pointing at the other, the loop numbered 1..10 with no gaps, and the NOT RUN rule
+      # stated. A repo may phrase its loop for its own domain; it may not ship a card whose
+      # numbering skips a step, because "7/10" against a nine-step list reports nothing.
+      - name: Process contract (CLAUDE.md + AGENTS.md + ten-step loop)
+        run: |
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_process_contract.py --root .
+
       # =======================================================================
       # Tuned MAX code-quality gate (design task 10). Copy-paste detection,
       # cyclomatic/maintainability ceilings, dead-code + modernization, and
