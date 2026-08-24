@@ -165,6 +165,11 @@ jobs:
           python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_size_policy.py \
             --src-dir "src/${{ inputs.module }}"
 
+      - name: Python floor (>= 3.14, no 3.12/3.13 — fail-closed)
+        run: |
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_python_floor.py \
+            --pyproject pyproject.toml
+
       # =======================================================================
       # Tuned MAX code-quality gate (design task 10). Copy-paste detection,
       # cyclomatic/maintainability ceilings, dead-code + modernization, and
