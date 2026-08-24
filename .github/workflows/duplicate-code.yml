@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Duplicate-code gate — fails a PR when copy-paste duplication in the tracked
-# tooling code (release/, quality-gates/, testing/) exceeds the tuned threshold,
+# tooling code (quality-gates/) exceeds the tuned threshold,
 # so shared BQP tooling does not silently accumulate clones. Token-level
 # detection (jscpd) catches literal/near-literal clones across Python, shell,
 # and YAML; semantic duplication (same logic, different names) is the reviewer's
@@ -17,9 +17,10 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "release/**"
+      # release/ and testing/ stayed in breachsafe-common at the 2026-08-23 split; only
+      # quality-gates/ came here. scaffold/ is a copier TEMPLATE: its files are meant to be
+      # near-identical across renders, so scanning it for duplication would be noise.
       - "quality-gates/**"
-      - "testing/**"
       - ".jscpd.json"
       - ".github/workflows/duplicate-code.yml"
   workflow_dispatch:
@@ -48,4 +49,4 @@ jobs:
           node-version: "20"
 
       - name: Detect duplicated code (jscpd)
-        run: npx --yes jscpd@4 release/ quality-gates/ testing/ --config .jscpd.json
+        run: npx --yes jscpd@4 quality-gates/ --config .jscpd.json
