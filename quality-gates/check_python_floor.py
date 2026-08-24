@@ -110,8 +110,16 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.pyproject.is_file():
-        print(f"check_python_floor: no such file: {args.pyproject}", file=sys.stderr)
-        return 2
+        # No-op, not a failure. A floor gate with nothing to check must not fail closed on
+        # absence: a consumer may keep pyproject.toml outside the root (src-layout, monorepo
+        # subdirectory) or legitimately have none, and the reusable workflow calls this step
+        # unconditionally. Exiting 2 there failed the whole run on a file that was never
+        # required. Exit 2 stays reserved for a genuine usage error, e.g. a bad flag. (#18)
+        #
+        # Say so on stdout. A gate that inspected nothing must report that it inspected
+        # nothing, never a bare success.
+        print(f"Python floor gate: no {args.pyproject}; nothing to gate (NOT RUN).")
+        return 0
 
     violations = check(args.pyproject)
     if violations:
