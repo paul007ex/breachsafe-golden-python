@@ -1,0 +1,109 @@
+<!-- SPDX-License-Identifier: {{ license }} -->
+# {{ project_name }} — agent card
+
+Compact executable card. Policy, architecture, licensing, and scope live in
+[`CLAUDE.md`](CLAUDE.md). This file is the loop and the commands.
+
+## Read before the first edit
+
+1. `~/claude/CLAUDE.md` — platform policy. Auto-loads from any ancestor directory.
+2. [`CLAUDE.md`](CLAUDE.md) — this repository. Where it conflicts with the platform file, this
+   one wins for this repo, and every conflict is named there with its reason.
+3. This file — the loop below.
+4. `.claude/skills/` — task procedures. Check for one covering the task before writing your own.
+
+## The ten-step loop
+
+Every non-trivial change. Report progress as `N/10`.
+
+| # | Step | What it means here |
+|---|---|---|
+| 1 | **Inventory** | Read the issue, the tree, the three files above, and the applicable skills. Name them. |
+| 2 | **Steelman** | State the strongest case for the current behaviour, then the smallest defensible fix. |
+| 3 | **Isolate** | Reproduce in a fresh temporary workstream (`git clone` to `/tmp`), never the shared checkout. Another agent may be working in it. |
+| 4 | **Pressure-test** | Alternatives, malformed input, missing input, compatibility, regressions. Not just the happy path. |
+| 5 | **Implement** | The smallest contract-preserving change. |
+| 6 | **Regression tests** | A test that fails before the fix and passes after. |
+| 7 | **Gates** | `just gates`. Read **exit codes**, not output text. |
+| 8 | **Review** | Ownership, dependencies, duplication, size, logging, error handling, extensibility. |
+| 9 | **Git** | Update the issue with evidence, commit, push, PR. Never commit to `main` directly. |
+| 10 | **Release** | Package, image, signature, and a real CLI smoke path, each verified **separately**. |
+
+## The NOT RUN rule
+
+**A skipped step is reported as `NOT RUN` with a reason. A green command that did not execute
+the required scope is not evidence.**
+
+This rule exists because these all happened:
+
+- `reuse lint | grep Congratulations` printed nothing on failure, and the empty output was read
+  as a pass. Two releases shipped with a red gate.
+- An anti-pattern gate reported `PASS` having inspected **0 added lines**, because the script did
+  not exist on the branch and the "No such file" exit read as success.
+- `docker ps --filter name=foo` substring-matched a **different** container, and its health was
+  reported as the new one's.
+- A `paths:` filter that matched nothing **skipped** a workflow. A skipped workflow reports no
+  error, so duplication went ungated behind a green check.
+
+The shape is always the same: **a check that inspected nothing reported success.** Before
+believing a pass, confirm the input count was non-zero.
+
+```bash
+# Wrong: reads the last command in the pipe, and greps for a success string.
+uv run reuse lint | grep Congratulations
+
+# Right: read the exit code of the thing you actually care about.
+uv run reuse lint;                echo "exit=$?"
+uv run pytest -q > /tmp/o 2>&1;   echo "exit=$?"; tail -3 /tmp/o
+```
+
+## Fast commands
+
+```bash
+just setup           # uv venv --python {{ python_version }} + install
+just gates           # lint format-check typecheck arch test quality bandit pip-audit reuse-lint
+just lint            # ruff check
+just typecheck       # mypy --strict
+just test            # pytest with the coverage floor ({{ coverage_min }}%)
+just lock            # REQUIRED before the first commit: writes uv.lock
+just skills-sync     # install the skill set from breachsafe-common/skills
+```
+
+Run gates **individually** when diagnosing. `just gates` chains them, so the first failure masks
+every later one.
+
+## Gate expectations
+
+| Gate | Bar |
+|---|---|
+| Coverage | `{{ coverage_min }}%`, never lowered to make a run pass |
+| `mypy` | `--strict`, no new relaxations |
+| `ruff` | no blanket `noqa` |
+| `xenon` | `--max-absolute B` |
+| `reuse lint` | 100%, every path annotated |
+| Skipped tests | none; the no-skipped-tests gate fails the run |
+
+A red gate is a bug to fix, not a baseline to accept.
+
+## Handoff format
+
+When reporting back:
+
+```
+N/10 complete.
+
+Steps run:      <what, with the command and its exit code>
+NOT RUN:        <step> — <reason>
+Evidence:       <file:line, gate output, run id>
+Unverified:     <any claim you did not check>
+```
+
+State failures directly. When a claim is not verified, write "unverified".
+
+## Authorization
+
+- Issue-driven: open an issue first for non-trivial work.
+- Branch from `main`, PR, never commit to `main`.
+- One thing per PR.
+- Licence for new first-party files: `{{ license }}`. Third-party and vendored material keeps
+  its original licence and is never relabelled.

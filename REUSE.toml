@@ -30,6 +30,8 @@ SPDX-License-Identifier = "Apache-2.0"
 path = [
   "scaffold/**",
   "docs/**",
+  "AGENTS.md",
+  "CLAUDE.md",
   "README.md",
   "REUSE.toml",
   "LICENSE",
