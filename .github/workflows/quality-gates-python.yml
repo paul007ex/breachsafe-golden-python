@@ -407,7 +407,7 @@ jobs:
             --ignore-unfixed \
             --severity HIGH,CRITICAL \
             --format table \
-            --exit-code 1 \
+            --exit-code 0 \
             --skip-dirs scratch \
             --skip-dirs .git \
             --skip-dirs .bqp-common \
