@@ -294,6 +294,10 @@ jobs:
 
       - name: pytest (coverage floor + JUnit XML)
         run: |
+          # The container runs as root while the runner owns the checkout.
+          # Trust only this workspace so tests that inspect tracked files work
+          # without weakening Git's dubious-ownership protection globally.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           uv run --locked pytest \
             --cov="${{ inputs.module }}" \
             --cov-report=term-missing \
