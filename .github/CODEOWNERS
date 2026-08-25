@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 BreachSAFE contributors
+# SPDX-License-Identifier: Apache-2.0
+# Default ownership for the reusable Python baseline.
+* @paul007ex
+
+# High-impact release surfaces remain explicitly owned.
+/pyproject.toml @paul007ex
+/uv.lock @paul007ex
+/.github/ @paul007ex
+/.github/workflows/ @paul007ex

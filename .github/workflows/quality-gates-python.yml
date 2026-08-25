@@ -15,7 +15,7 @@
 #
 # Everything runs inside the pinned breachsafe-container so CI stops rebuilding
 # OpenSSL 3.5 and tool versions stop drifting (design §4.2). The container
-# already carries: uv, ruff, mypy, bandit, pip-audit, reuse, gitleaks, trivy.
+# already carries: uv, ruff, mypy, bandit, pip-audit, reuse, gitleaks.
 # Third-party actions are SHA-pinned; least-privilege token; no persisted creds.
 
 name: quality-gates-python
@@ -394,25 +394,16 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # Uses the trivy already pinned inside breachsafe-container, not
-      # aquasecurity/trivy-action. The action downloads its own trivy binary with
-      # curl or wget, and this image deliberately ships neither, so it failed:
-      #   aquasecurity/trivy crit http_download unable to find wget or curl
-      #   aquasecurity/trivy crit unable to find 'v0.70.0'
-      # Re-fetching a tool the pinned image already provides also defeats the point
-      # of pinning the image, and the action wanted an OLDER trivy (0.70.0) than the
-      # image carries (0.74.0). The version is pinned by the container tag.
-      - name: trivy filesystem scan (fails on HIGH/CRITICAL)
-        run: |
-          set -o pipefail
-          trivy --version | head -1
-          trivy filesystem \
-            --scanners vuln \
-            --ignore-unfixed \
-            --severity HIGH,CRITICAL \
-            --format table \
-            --exit-code 0 \
-            --skip-dirs scratch \
-            --skip-dirs .git \
-            --skip-dirs .bqp-common \
-            . | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+      # The trivy filesystem scan was removed here (lead decision, 2026-08-25):
+      # Trivy no longer runs anywhere in BQP. It ran with --exit-code 0, so it
+      # never failed a consumer build despite the step name claiming it did; its
+      # only output was a table in the step summary that nothing consumed.
+      #
+      # Removing it here is also a prerequisite for dropping the trivy binary from
+      # breachsafe-container. This step invoked `trivy` from the image PATH, so
+      # deleting the binary first would have broken this job for every consumer.
+      #
+      # Vulnerability coverage that remains in this workflow: pip-audit over the
+      # resolved dependency set, bandit over first-party source, and gitleaks for
+      # secrets. Consumers wanting image-layer CVE scanning should run it in their
+      # own image workflow, where they control the base and the suppression list.
