@@ -136,49 +136,28 @@ jobs:
     permissions:
       contents: read
     env:
-      # Reusable-workflow signer identity. Repoint both on any org move (see #29).
+      # Reusable-workflow signer identity. Repoint BOTH on any org move (see #29).
       SIGNER_WORKFLOW: paul007ex/breachsafe-golden-python/.github/workflows/release-python.yml
       SIGNER_RE: '^https://github\.com/paul007ex/breachsafe-golden-python/\.github/workflows/release-python\.yml@'
-      OIDC_ISSUER: 'https://token.actions.githubusercontent.com'
     steps:
+      - name: Fetch the signing gate from golden
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: paul007ex/breachsafe-golden-python
+          ref: v1
+          path: .bqp-golden
+          persist-credentials: false
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Cryptographically verify every published distribution
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
-          REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-          dists="$(gh release view "$TAG" -R "$REPO" --json assets \
-            --jq '.assets[].name | select(test("\\.(whl|tar\\.gz)$"))')"
-          [ -n "$dists" ] || { echo "::error::no distributions on $TAG"; exit 1; }
-          fail=0
-          while IFS= read -r d; do
-            [ -n "$d" ] || continue
-            gh release download "$TAG" -R "$REPO" -p "$d" -p "$d.sigstore" -D "$tmp" 2>/dev/null \
-              || { echo "::error::missing artifact/.sigstore for $d"; fail=1; continue; }
-            # PRIMARY: SLSA provenance, pinned to the reusable signer workflow
-            if gh attestation verify "$tmp/$d" --repo "$REPO" --signer-workflow "$SIGNER_WORKFLOW"; then
-              echo "PASS attest: $d"
-            else
-              echo "::error::gh attestation verify FAILED for $d"; fail=1
-            fi
-            # GUARD + SECONDARY: sigstore keyless signature of the release asset
-            [ -s "$tmp/$d.sigstore" ] || { echo "::error::empty .sigstore for $d"; fail=1; continue; }
-            if cosign verify-blob --bundle "$tmp/$d.sigstore" \
-                 --certificate-oidc-issuer "$OIDC_ISSUER" \
-                 --certificate-identity-regexp "$SIGNER_RE" "$tmp/$d"; then
-              echo "PASS cosign: $d"
-            else
-              echo "::error::cosign verify-blob FAILED for $d"; fail=1
-            fi
-          done <<EOF
-          $dists
-          EOF
-          [ "$fail" -eq 0 ] || { echo "::error::release $TAG has unverifiable distributions"; exit 1; }
-          echo "PASS: attestation + signature verified for every distribution."
+          python3 .bqp-golden/quality-gates/verify_release_signed.py \
+            --tag "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --signer-workflow "$SIGNER_WORKFLOW" \
+            --signer-identity-regexp "$SIGNER_RE"
 
   testpypi:
     name: publish to TestPyPI (OIDC)
