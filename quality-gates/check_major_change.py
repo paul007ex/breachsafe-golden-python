@@ -142,9 +142,14 @@ def parse_name_status(text: str) -> dict[str, str]:
     return statuses
 
 
-def git_name_status(base_ref: str, head: str) -> str:
-    """Return `git diff --name-status BASE...HEAD` output, or raise UsageError."""
-    argv = ["git", "diff", "--name-status", f"{base_ref}...{head}"]
+def _git_diff(fmt: str, base_ref: str, head: str) -> str:
+    """Return `git diff <fmt> BASE...HEAD` output, or raise UsageError.
+
+    One helper for both diff formats. `--numstat` gives the LOC and file counts
+    the classifier thresholds on; `--name-status` gives the add/modify letters
+    that tell a decision record the change wrote from one it touched (#36).
+    """
+    argv = ["git", "diff", fmt, f"{base_ref}...{head}"]
     try:
         result = subprocess.run(  # nosec B603 - fixed argv, no shell, trusted refs
             argv,
@@ -159,25 +164,16 @@ def git_name_status(base_ref: str, head: str) -> str:
             f"git diff failed ({' '.join(argv)}): {exc.stderr.strip() or exc}"
         ) from exc
     return result.stdout
+
+
+def git_name_status(base_ref: str, head: str) -> str:
+    """Return `git diff --name-status BASE...HEAD` output, or raise UsageError."""
+    return _git_diff("--name-status", base_ref, head)
 
 
 def git_numstat(base_ref: str, head: str) -> str:
     """Return `git diff --numstat BASE...HEAD` output, or raise UsageError."""
-    argv = ["git", "diff", "--numstat", f"{base_ref}...{head}"]
-    try:
-        result = subprocess.run(  # nosec B603 - fixed argv, no shell, trusted refs
-            argv,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except FileNotFoundError as exc:  # pragma: no cover - git always present in CI
-        raise UsageError("git executable not found on PATH") from exc
-    except subprocess.CalledProcessError as exc:
-        raise UsageError(
-            f"git diff failed ({' '.join(argv)}): {exc.stderr.strip() or exc}"
-        ) from exc
-    return result.stdout
+    return _git_diff("--numstat", base_ref, head)
 
 
 # --------------------------------------------------------------------------- #
