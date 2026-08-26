@@ -7,11 +7,11 @@
 #
 #   jobs:
 #     quality-gates:
-#       uses: paul007ex/breachsafe-golden-python/.github/workflows/quality-gates-python.yml@v1.1.1
+#       uses: paul007ex/breachsafe-golden-python/.github/workflows/quality-gates-python.yml@v1
 #       with:
 #         module: myproject          # src/<module>, --cov=<module>
 #         coverage_min: 90           # pytest --cov-fail-under
-#         container_tag: 3.14-openssl3.5.7
+#         container_tag: 3.14-openssl3.5
 #
 # Everything runs inside the pinned breachsafe-container so CI stops rebuilding
 # OpenSSL 3.5 and tool versions stop drifting (design §4.2). The container
@@ -33,7 +33,7 @@ on:
         required: false
         default: 90
       container_tag:
-        description: "breachsafe-container tag, e.g. 3.14-openssl3.5.7"
+        description: "breachsafe-container tag, e.g. 3.14-openssl3.5"
         type: string
         required: true
 

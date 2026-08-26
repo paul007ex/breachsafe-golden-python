@@ -361,40 +361,51 @@ def resolve_settings(args: argparse.Namespace, config: dict[str, object]) -> tup
     return loc_threshold, files_threshold, core_paths
 
 
+def _resolve_inputs(args: argparse.Namespace) -> tuple[str, int, int, list[str]]:
+    """Validate args, load config/settings, and return (numstat, loc, files, core_paths)."""
+    if not args.base_ref and not args.numstat_file:
+        raise UsageError("provide --base-ref (git mode) or --numstat-file")
+    if args.base_ref and args.numstat_file:
+        raise UsageError("use either --base-ref or --numstat-file, not both")
+    config = load_config(args.config)
+    loc_threshold, files_threshold, core_paths = resolve_settings(args, config)
+    if args.numstat_file:
+        if not args.numstat_file.is_file():
+            raise UsageError(f"--numstat-file {args.numstat_file} not found")
+        numstat = args.numstat_file.read_text(encoding="utf-8")
+    else:
+        numstat = git_numstat(args.base_ref, args.head)
+    return numstat, loc_threshold, files_threshold, core_paths
+
+
+def _valid_records(records: list[Path]) -> list[Path]:
+    """Return the subset of decision records that pass validation (prints problems)."""
+    valid: list[Path] = []
+    for record in records:
+        problems = validate_decision_record(record)
+        if problems:
+            print(f"\n  decision record {record} is INVALID:", file=sys.stderr)
+            for problem in problems:
+                print(f"    - {problem}", file=sys.stderr)
+        else:
+            valid.append(record)
+    return valid
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-
     try:
-        if not args.base_ref and not args.numstat_file:
-            raise UsageError("provide --base-ref (git mode) or --numstat-file")
-        if args.base_ref and args.numstat_file:
-            raise UsageError("use either --base-ref or --numstat-file, not both")
-
-        config = load_config(args.config)
-        loc_threshold, files_threshold, core_paths = resolve_settings(args, config)
-
-        if args.numstat_file:
-            if not args.numstat_file.is_file():
-                raise UsageError(f"--numstat-file {args.numstat_file} not found")
-            numstat = args.numstat_file.read_text(encoding="utf-8")
-        else:
-            numstat = git_numstat(args.base_ref, args.head)
+        numstat, loc_threshold, files_threshold, core_paths = _resolve_inputs(args)
     except UsageError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
     added, removed, paths = parse_numstat(numstat)
     reasons = classify(
-        added,
-        removed,
-        paths,
-        loc_threshold=loc_threshold,
-        files_threshold=files_threshold,
-        label=args.label,
-        core_paths=core_paths,
+        added, removed, paths, loc_threshold=loc_threshold,
+        files_threshold=files_threshold, label=args.label, core_paths=core_paths,
     )
-
     if not reasons:
         print(
             f"change-gate: SURGICAL (+{added}/-{removed} across {len(paths)} file(s)); "
@@ -420,24 +431,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    valid: list[Path] = []
-    for record in records:
-        problems = validate_decision_record(record)
-        if problems:
-            print(f"\n  decision record {record} is INVALID:", file=sys.stderr)
-            for problem in problems:
-                print(f"    - {problem}", file=sys.stderr)
-        else:
-            valid.append(record)
-
+    valid = _valid_records(records)
     if valid:
-        print(
-            f"\nchange-gate: PASS - valid decision record present: {valid[0]}"
-        )
+        print(f"\nchange-gate: PASS - valid decision record present: {valid[0]}")
         return 0
 
     print(
         "\nFAIL: decision record(s) present but none satisfies all of "
+"\nFAIL: decision record(s) present but none satisfies all of "
         "'## Options' (scored A/B/C table), '## Steelman', "
         "'## Pressure-test evidence'.",
         file=sys.stderr,

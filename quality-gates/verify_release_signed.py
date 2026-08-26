@@ -71,77 +71,43 @@ def verify_one(
     return True, f"verified: {artifact.name}"
 
 
+def _verify_release(
+    tag: str, repo: str, signer_workflow: str, signer_regexp: str
+) -> bool:
+    """Enumerate, download, and verify every distribution. Returns True if all pass."""
+    view = subprocess.run(
+        ["gh", "release", "view", tag, "-R", repo, "--json", "assets", "--jq",
+         ".assets[].name"], capture_output=True, text=True, check=False)
+    dists = [n for n in view.stdout.split() if n.endswith(DIST_SUFFIXES)]
+    if not dists:
+        print(f"::error::no distributions (.whl/.tar.gz) on {tag}")
+        return False
+    ok = True
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        for dist in dists:
+            subprocess.run(
+                ["gh", "release", "download", tag, "-R", repo, "-p", dist,
+                 "-p", f"{dist}.sigstore", "-D", str(tmp)],
+                capture_output=True, text=True, check=False)
+            passed, msg = verify_one(tmp / dist, tmp / f"{dist}.sigstore", repo,
+                                     signer_workflow, signer_regexp)
+            print(("PASS: " if passed else "::error::") + msg)
+            ok = ok and passed
+    return ok
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description="Fail-closed release-signing verification gate."
-    )
+    ap = argparse.ArgumentParser(description="Fail-closed release-signing verification gate.")
     ap.add_argument("--tag", required=True)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--signer-workflow", required=True)
     ap.add_argument("--signer-identity-regexp", required=True)
     a = ap.parse_args(argv)
-
-    view = subprocess.run(
-        [
-            "gh",
-            "release",
-            "view",
-            a.tag,
-            "-R",
-            a.repo,
-            "--json",
-            "assets",
-            "--jq",
-            ".assets[].name",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    dists = [n for n in view.stdout.split() if n.endswith(DIST_SUFFIXES)]
-    if not dists:
-        print(f"::error::no distributions (.whl/.tar.gz) on {a.tag}")
-        return 1
-
-    failed = False
-    with tempfile.TemporaryDirectory() as td:
-        tmp = Path(td)
-        for d in dists:
-            subprocess.run(
-                [
-                    "gh",
-                    "release",
-                    "download",
-                    a.tag,
-                    "-R",
-                    a.repo,
-                    "-p",
-                    d,
-                    "-p",
-                    f"{d}.sigstore",
-                    "-D",
-                    str(tmp),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            ok, msg = verify_one(
-                tmp / d,
-                tmp / f"{d}.sigstore",
-                a.repo,
-                a.signer_workflow,
-                a.signer_identity_regexp,
-            )
-            print(("PASS: " if ok else "::error::") + msg)
-            failed = failed or not ok
-
-    if failed:
+    if not _verify_release(a.tag, a.repo, a.signer_workflow, a.signer_identity_regexp):
         print(f"::error::release {a.tag} has unsigned or unverifiable distributions")
         return 1
-    print(
-        f"PASS: every distribution on {a.tag} carries a verified attestation + signature"
-    )
+    print(f"PASS: every distribution on {a.tag} carries a verified attestation + signature")
     return 0
 
 
