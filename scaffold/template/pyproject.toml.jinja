@@ -60,7 +60,7 @@ Repository = "https://github.com/{{ github_owner }}/{{ project_slug }}"
 Issues = "https://github.com/{{ github_owner }}/{{ project_slug }}/issues"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling<1.28"]  # <1.28 emits Metadata-Version 2.4 (twine 6.2 rejects 2.5); unpin when twine/packaging accept 2.5
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
