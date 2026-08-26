@@ -123,6 +123,44 @@ def _normalize_rename(path_field: str) -> str:
     return path_field
 
 
+def parse_name_status(text: str) -> dict[str, str]:
+    """Parse `git diff --name-status` into {path: status letter}.
+
+    Rename and copy entries carry a similarity score (`R100`) and two paths; the
+    destination is recorded, matching how `parse_numstat` normalizes renames.
+    """
+    statuses: dict[str, str] = {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) < 2:
+            continue
+        letter = fields[0][:1]
+        path = fields[-1]
+        statuses[path] = letter
+    return statuses
+
+
+def git_name_status(base_ref: str, head: str) -> str:
+    """Return `git diff --name-status BASE...HEAD` output, or raise UsageError."""
+    argv = ["git", "diff", "--name-status", f"{base_ref}...{head}"]
+    try:
+        result = subprocess.run(  # nosec B603 - fixed argv, no shell, trusted refs
+            argv,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except FileNotFoundError as exc:  # pragma: no cover - git always present in CI
+        raise UsageError("git executable not found on PATH") from exc
+    except subprocess.CalledProcessError as exc:
+        raise UsageError(
+            f"git diff failed ({' '.join(argv)}): {exc.stderr.strip() or exc}"
+        ) from exc
+    return result.stdout
+
+
 def git_numstat(base_ref: str, head: str) -> str:
     """Return `git diff --numstat BASE...HEAD` output, or raise UsageError."""
     argv = ["git", "diff", "--numstat", f"{base_ref}...{head}"]
@@ -260,22 +298,52 @@ def discover_records(
     paths: list[str],
     explicit: list[str],
     changed_root: Path,
-) -> list[Path]:
-    """Collect candidate decision-record paths from the diff and --decision-record."""
-    candidates: list[Path] = []
+    statuses: dict[str, str] | None = None,
+) -> list[tuple[Path, str]]:
+    """Collect candidate decision records as (path, provenance), added first.
+
+    Provenance is what the diff says the change did to the record, which the
+    caller reports so a reader can tell a record the change WROTE from one it
+    merely touched (#36). A pre-existing record still satisfies the gate; the
+    defect was a message that could not be told apart from the honest case.
+
+    | provenance    | meaning                                          |
+    |---------------|--------------------------------------------------|
+    | `added`       | the diff creates this file                       |
+    | `pre-existing`| the diff modifies a file that already existed     |
+    | `unknown`     | no status available (`--numstat-file` alone)      |
+    | `explicit`    | asserted by the operator via `--decision-record`  |
+
+    `statuses` is `None` when the diff was supplied as bare numstat, which
+    carries no add/modify information. Provenance is reported as unknown rather
+    than guessed: numstat cannot tell a new file from an append-only edit.
+    """
+    candidates: list[tuple[Path, str]] = []
     for path in paths:
-        if DECISION_PATH_RE.search(path):
-            candidates.append(changed_root / path)
+        if not DECISION_PATH_RE.search(path):
+            continue
+        if statuses is None:
+            provenance = "unknown"
+        elif statuses.get(path) == "A":
+            provenance = "added"
+        else:
+            provenance = "pre-existing"
+        candidates.append((changed_root / path, provenance))
     for extra in explicit:
-        candidates.append(Path(extra))
+        candidates.append((Path(extra), "explicit"))
+
+    # Added records first, so a record written for this change wins the match
+    # over an unrelated one the change happened to touch.
+    order = {"added": 0, "explicit": 1, "unknown": 2, "pre-existing": 3}
+    candidates.sort(key=lambda item: order[item[1]])
+
     # de-dup while preserving order
     seen: set[Path] = set()
-    unique: list[Path] = []
-    for candidate in candidates:
-        resolved = candidate
-        if resolved not in seen:
-            seen.add(resolved)
-            unique.append(resolved)
+    unique: list[tuple[Path, str]] = []
+    for candidate, provenance in candidates:
+        if candidate not in seen:
+            seen.add(candidate)
+            unique.append((candidate, provenance))
     return unique
 
 
@@ -307,6 +375,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--numstat-file",
         type=Path,
         help="read pre-captured `git diff --numstat` output instead of running git",
+    )
+    src.add_argument(
+        "--name-status-file",
+        type=Path,
+        help=(
+            "pre-captured `git diff --name-status` output, so a decision record "
+            "the change ADDED can be told from one it merely touched (#36). "
+            "Optional; without it provenance is reported as unknown"
+        ),
     )
     parser.add_argument(
         "--changed-root",
@@ -361,34 +438,49 @@ def resolve_settings(args: argparse.Namespace, config: dict[str, object]) -> tup
     return loc_threshold, files_threshold, core_paths
 
 
-def _resolve_inputs(args: argparse.Namespace) -> tuple[str, int, int, list[str]]:
-    """Validate args, load config/settings, and return (numstat, loc, files, core_paths)."""
+def _resolve_inputs(
+    args: argparse.Namespace,
+) -> tuple[str, int, int, list[str], dict[str, str] | None]:
+    """Validate args, load config/settings, and return the diff plus its statuses.
+
+    The fifth element is {path: status letter} when add/modify information is
+    available, else None. Git mode always has it; `--numstat-file` mode has it
+    only when `--name-status-file` is supplied alongside.
+    """
     if not args.base_ref and not args.numstat_file:
         raise UsageError("provide --base-ref (git mode) or --numstat-file")
     if args.base_ref and args.numstat_file:
         raise UsageError("use either --base-ref or --numstat-file, not both")
     config = load_config(args.config)
     loc_threshold, files_threshold, core_paths = resolve_settings(args, config)
+    statuses: dict[str, str] | None = None
     if args.numstat_file:
         if not args.numstat_file.is_file():
             raise UsageError(f"--numstat-file {args.numstat_file} not found")
         numstat = args.numstat_file.read_text(encoding="utf-8")
+        if args.name_status_file:
+            if not args.name_status_file.is_file():
+                raise UsageError(f"--name-status-file {args.name_status_file} not found")
+            statuses = parse_name_status(
+                args.name_status_file.read_text(encoding="utf-8")
+            )
     else:
         numstat = git_numstat(args.base_ref, args.head)
-    return numstat, loc_threshold, files_threshold, core_paths
+        statuses = parse_name_status(git_name_status(args.base_ref, args.head))
+    return numstat, loc_threshold, files_threshold, core_paths, statuses
 
 
-def _valid_records(records: list[Path]) -> list[Path]:
+def _valid_records(records: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
     """Return the subset of decision records that pass validation (prints problems)."""
-    valid: list[Path] = []
-    for record in records:
+    valid: list[tuple[Path, str]] = []
+    for record, provenance in records:
         problems = validate_decision_record(record)
         if problems:
             print(f"\n  decision record {record} is INVALID:", file=sys.stderr)
             for problem in problems:
                 print(f"    - {problem}", file=sys.stderr)
         else:
-            valid.append(record)
+            valid.append((record, provenance))
     return valid
 
 
@@ -396,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        numstat, loc_threshold, files_threshold, core_paths = _resolve_inputs(args)
+        numstat, loc_threshold, files_threshold, core_paths, statuses = _resolve_inputs(args)
     except UsageError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -417,7 +509,7 @@ def main(argv: list[str] | None = None) -> int:
     for reason in reasons:
         print(f"  - {reason}", file=sys.stderr)
 
-    records = discover_records(paths, args.decision_record, args.changed_root)
+    records = discover_records(paths, args.decision_record, args.changed_root, statuses)
     if not records:
         print(
             "\nFAIL: a non-surgical change requires a decision record at "
@@ -433,7 +525,21 @@ def main(argv: list[str] | None = None) -> int:
 
     valid = _valid_records(records)
     if valid:
-        print(f"\nchange-gate: PASS - valid decision record present: {valid[0]}")
+        record, provenance = valid[0]
+        wording = {
+            "added": "added by this change",
+            "pre-existing": "pre-existing, modified by this change",
+            "unknown": "provenance unknown, no add/modify status supplied",
+            "explicit": "supplied via --decision-record",
+        }[provenance]
+        print(f"\nchange-gate: PASS - valid decision record: {record} ({wording})")
+        if provenance == "pre-existing":
+            print(
+                "\nWARNING: this change wrote no decision record of its own. The only "
+                "valid one is pre-existing and was modified here, so it may document a "
+                "different decision. Passing on it; confirm it covers this change.",
+                file=sys.stderr,
+            )
         return 0
 
     print(
