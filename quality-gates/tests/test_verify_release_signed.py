@@ -5,6 +5,7 @@
 The guards must fail closed WITHOUT touching the network — this is the #28 regression
 test: an empty or missing .sigstore (or an empty artifact) must never verify.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -18,7 +19,11 @@ gate = importlib.util.module_from_spec(SPEC)
 sys.modules["verify_release_signed"] = gate
 SPEC.loader.exec_module(gate)
 
-_ARGS = ("owner/repo", "owner/golden/.github/workflows/release-python.yml", r"^https://x@")
+_ARGS = (
+    "owner/repo",
+    "owner/golden/.github/workflows/release-python.yml",
+    r"^https://x@",
+)
 
 
 def _wheel(tmp: Path) -> Path:
