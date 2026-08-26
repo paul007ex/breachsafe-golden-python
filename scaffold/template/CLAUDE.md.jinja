@@ -156,7 +156,7 @@ publish, cosign, SLSA attestation).
 
 The repo ships a self-contained security-posture layer, all SHA-pinned and least-privilege:
 
-- **OpenSSF Scorecard** (`.github/workflows/scorecard.yml`) — weekly + on `branch_protection_rule`;
+- **OpenSSF Scorecard** (`.github/workflows/scorecard.yml`) — weekly;
   `publish_results: true` (needs a **public** repo). SARIF goes to the Security tab.
 - **CodeQL** (`.github/workflows/codeql.yml`) — `security-extended` on push, PR, and weekly.
 - **Fuzzing** — shared Atheris harnesses in `tests/fuzz/` feed two tiers:
@@ -168,8 +168,6 @@ The repo ships a self-contained security-posture layer, all SHA-pinned and least
      tiers consume it. Add one `fuzz_*.py` per untrusted-input boundary. See `tests/fuzz/README.md`.
 - **Pinned dependencies.** Commit `uv.lock` (run `just lock`). Scorecard's Pinned-Dependencies
   check and CI's `uv sync --locked` both require a committed lockfile.
-- **Branch protection** is scored by Scorecard; apply it as code with
-  `breachsafe-golden-python/quality-gates/set_branch_protection.py` (requires a public repo or GitHub Pro).
 
 ## Skills (smart-Claude-on-day-one)
 
