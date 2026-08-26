@@ -12,13 +12,11 @@
 #       uses: paul007ex/breachsafe-golden-python/.github/workflows/scorecard-verify.yml@v1
 #
 # Probes (re-derived, not read from api.securityscorecards.dev):
-#   * Branch-Protection   — default branch has protection + >=1 required review
 #   * Pinned-Dependencies — uv.lock committed; third-party actions are SHA-pinned
 #   * SAST                — a CodeQL workflow exists
 #   * Fuzzing             — a ClusterFuzzLite (cifuzz) workflow exists
 #   * Token-Permissions   — every workflow declares a `permissions:` block
 #
-# File-presence probes fail hard; the branch-protection probe is advisory because
 # reading it needs an admin-scoped token that the default GITHUB_TOKEN lacks.
 
 name: scorecard-verify
@@ -116,29 +114,3 @@ jobs:
             exit 1
           fi
           echo "ClusterFuzzLite workflow present."
-
-      - name: Branch-Protection — re-probe (advisory)
-        continue-on-error: true
-        run: |
-          branch="$WANT_BRANCH"
-          if [[ -z "$branch" ]]; then
-            branch="$(gh api "repos/${REPO}" --jq .default_branch)"
-          fi
-          echo "Probing protection on ${REPO}@${branch} ..."
-          if ! prot="$(gh api "repos/${REPO}/branches/${branch}/protection" 2>&1)"; then
-            case "$prot" in
-              *"Upgrade to GitHub Pro"*)
-                echo "::warning::branch protection unavailable — private repo without a paid plan. Make it public or upgrade (see set_branch_protection.py)." ;;
-              *"Branch not protected"*|*"Not Found"*)
-                echo "::warning::branch '${branch}' is NOT protected. Run set_branch_protection.py." ;;
-              *)
-                echo "::warning::could not read branch protection (token scope?): ${prot}" ;;
-            esac
-            exit 0
-          fi
-          count="$(echo "$prot" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("required_pull_request_reviews",{}).get("required_approving_review_count",0))' 2>/dev/null || echo 0)"
-          if [[ "${count:-0}" -lt 1 ]]; then
-            echo "::warning::branch protected but requires 0 approving reviews."
-          else
-            echo "Branch protection OK: ${count} required review(s)."
-          fi

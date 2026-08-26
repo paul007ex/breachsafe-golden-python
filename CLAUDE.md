@@ -23,7 +23,7 @@ reusable workflows that gate it, and the gate scripts those workflows run.
 | Path | What |
 |---|---|
 | `scaffold/` | Copier template. `uvx copier copy gh:paul007ex/breachsafe-golden-python/scaffold <dir>` |
-| `quality-gates/` | Size policy, no-skipped-tests, major-change, anti-pattern diff, branch protection |
+| `quality-gates/` | Size policy, no-skipped-tests, major-change, anti-pattern diff |
 | `.github/workflows/` | Five reusable `workflow_call` gates, plus a repo-local duplicate-code gate |
 | `docs/decisions/` | Decision records for changes to the standard |
 

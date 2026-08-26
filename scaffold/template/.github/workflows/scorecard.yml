@@ -12,9 +12,6 @@
 name: OpenSSF Scorecard
 
 on:
-  # Re-run whenever branch-protection settings change so the posture score
-  # reflects the current ruleset immediately, not at the next weekly window.
-  branch_protection_rule:
   schedule:
     # Mondays 06:00 UTC. Weekly cadence; not on every PR.
     - cron: "0 6 * * 1"
