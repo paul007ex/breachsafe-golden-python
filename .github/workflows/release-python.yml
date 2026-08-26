@@ -135,32 +135,50 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      # Reusable-workflow signer identity. Repoint both on any org move (see #29).
+      SIGNER_WORKFLOW: paul007ex/breachsafe-golden-python/.github/workflows/release-python.yml
+      SIGNER_RE: '^https://github\.com/paul007ex/breachsafe-golden-python/\.github/workflows/release-python\.yml@'
+      OIDC_ISSUER: 'https://token.actions.githubusercontent.com'
     steps:
-      - name: Verify the published release is actually signed
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Cryptographically verify every published distribution
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
-          tag="${{ github.event.release.tag_name }}"
-          repo="${{ github.repository }}"
-          assets="$(gh release view "$tag" --repo "$repo" --json assets \
-            --jq '.assets[].name')"
-          echo "release assets:"; echo "$assets"
-          missing=0
-          while IFS= read -r name; do
-            case "$name" in
-              *.sigstore) continue ;;
-              *.whl|*.tar.gz)
-                if ! printf '%s\n' "$assets" | grep -qx "$name.sigstore"; then
-                  echo "MISSING signature bundle for $name" >&2
-                  missing=1
-                fi ;;
-            esac
-          done <<< "$assets"
-          test "$missing" -eq 0 || {
-            echo "FAIL: release $tag has unsigned distribution assets" >&2
-            exit 1
-          }
-          echo "PASS: every distribution asset is signed."
+          set -euo pipefail
+          tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+          dists="$(gh release view "$TAG" -R "$REPO" --json assets \
+            --jq '.assets[].name | select(test("\\.(whl|tar\\.gz)$"))')"
+          [ -n "$dists" ] || { echo "::error::no distributions on $TAG"; exit 1; }
+          fail=0
+          while IFS= read -r d; do
+            [ -n "$d" ] || continue
+            gh release download "$TAG" -R "$REPO" -p "$d" -p "$d.sigstore" -D "$tmp" 2>/dev/null \
+              || { echo "::error::missing artifact/.sigstore for $d"; fail=1; continue; }
+            # PRIMARY: SLSA provenance, pinned to the reusable signer workflow
+            if gh attestation verify "$tmp/$d" --repo "$REPO" --signer-workflow "$SIGNER_WORKFLOW"; then
+              echo "PASS attest: $d"
+            else
+              echo "::error::gh attestation verify FAILED for $d"; fail=1
+            fi
+            # GUARD + SECONDARY: sigstore keyless signature of the release asset
+            [ -s "$tmp/$d.sigstore" ] || { echo "::error::empty .sigstore for $d"; fail=1; continue; }
+            if cosign verify-blob --bundle "$tmp/$d.sigstore" \
+                 --certificate-oidc-issuer "$OIDC_ISSUER" \
+                 --certificate-identity-regexp "$SIGNER_RE" "$tmp/$d"; then
+              echo "PASS cosign: $d"
+            else
+              echo "::error::cosign verify-blob FAILED for $d"; fail=1
+            fi
+          done <<EOF
+          $dists
+          EOF
+          [ "$fail" -eq 0 ] || { echo "::error::release $TAG has unverifiable distributions"; exit 1; }
+          echo "PASS: attestation + signature verified for every distribution."
 
   testpypi:
     name: publish to TestPyPI (OIDC)
