@@ -22,6 +22,7 @@ jobs:
       module: ${{ steps.cfg.outputs.module }}
       coverage_min: ${{ steps.cfg.outputs.coverage_min }}
       container_tag: ${{ steps.cfg.outputs.container_tag }}
+      docs_contract: ${{ steps.cfg.outputs.docs_contract }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,4 +42,6 @@ jobs:
       # fails with no job and no annotation, and nothing says why. fromJSON casts.
       coverage_min: ${{ fromJSON(needs.load-config.outputs.coverage_min) }}
       container_tag: ${{ needs.load-config.outputs.container_tag }}
+      # docs_contract is a boolean input; fromJSON casts the bqp.env string.
+      docs_contract: ${{ fromJSON(needs.load-config.outputs.docs_contract) }}
     secrets: inherit

@@ -36,6 +36,11 @@ on:
         description: "breachsafe-container tag, e.g. 3.14-openssl3.5"
         type: string
         required: true
+      docs_contract:
+        description: "Enforce the numbered '## Contents' docs contract (platform policy 9)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -201,6 +206,15 @@ jobs:
       - name: Process contract (CLAUDE.md + AGENTS.md + ten-step loop)
         run: |
           python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_process_contract.py --root .
+
+      # Opt-in per repo via docs_contract in .github/bqp.env. Enforces platform
+      # policy 9: every tracked Markdown file opens with a numbered ## Contents
+      # whose in-document anchors resolve. Default off so existing consumers and
+      # the golden-canary are unaffected until they set docs_contract=true.
+      - name: Documentation contract (numbered ## Contents + resolving anchors)
+        if: ${{ inputs.docs_contract }}
+        run: |
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_docs.py --root .
 
       # =======================================================================
       # Tuned MAX code-quality gate (design task 10). Copy-paste detection,
