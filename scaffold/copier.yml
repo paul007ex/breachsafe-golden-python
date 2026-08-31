@@ -80,3 +80,10 @@ container_tag:
   type: str
   help: Tag of ghcr.io/<owner>/breachsafe-container to run CI/dev in.
   default: "3.14-openssl3.5.7"
+
+docs_contract:
+  type: bool
+  help: >-
+    Enforce the numbered '## Contents' docs contract (platform policy 9) in CI.
+    Off by default; enable once every tracked Markdown file has a Contents list.
+  default: false
