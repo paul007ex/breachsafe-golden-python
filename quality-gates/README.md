@@ -43,6 +43,24 @@ The reusable workflow contract changes when this step is added. Publish a new
 versioned workflow tag (for example `v1.1`) before consumer repositories adopt
 it; do not silently move an existing immutable tag.
 
+## CLAUDE.md drift gate
+
+`check_claude_md.py` keeps a repo's root `CLAUDE.md` honest against the 1-master +
+thin-per-repo-card model. BQP runs one master policy file (`~/claude/CLAUDE.md`, auto-loaded
+as Claude Code walks up from the working directory) and one thin per-repo card that only
+refines it. A card that restates shared rules instead of linking to the master is how the two
+rot out of sync.
+
+The gate checks structure, not prose: the root `CLAUDE.md` exists, it has an "Instruction
+hierarchy" section that names the platform master (`~/claude/CLAUDE.md`, or the
+`$BQP_ROOT/CLAUDE.md` form), and it opens with a numbered table of contents linking to its
+headings (platform §9). Each failure is reported `path:line`. Exit `0` on pass, `1` on a
+violated card, `2` on a usage error (the target directory does not exist).
+
+It is opt-in in CI (the `claude_md_check` input defaults to false) so a repo adopts it once its
+card is ready, without a surprise red gate on day one. Run it locally with
+`python3 check_claude_md.py --root .`.
+
 ## What was in qureddy's CI but is NOT here, and why
 
 qureddy also has `scripts/release_gate.py` (a local, checksum-pinned script that builds,

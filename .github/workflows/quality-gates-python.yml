@@ -46,6 +46,11 @@ on:
         type: boolean
         required: false
         default: false
+      claude_md_check:
+        description: "Fail if root CLAUDE.md lacks an Instruction-hierarchy pointer to the master or a numbered TOC (opt-in)"
+        type: boolean
+        required: false
+        default: false
       shellcheck_check:
         description: "Run ShellCheck over **/*.sh (opt-in; not invoked unless true)"
         type: boolean
@@ -205,6 +210,16 @@ jobs:
           python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_adr_status.py \
             --base-ref "$BASE_SHA" --head "$HEAD_SHA" --repo-root . \
             | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+
+      # CLAUDE.md drift gate. Opt-in (claude_md_check); the step is not invoked otherwise.
+      # Structure only: the root CLAUDE.md exists, its Instruction hierarchy section names the
+      # platform master (~/claude/CLAUDE.md), and it opens with a numbered TOC (platform §9). A
+      # card that restates shared rules instead of linking to the master rots out of sync; this
+      # gate keeps the 1-master + thin-per-repo-card model honest.
+      - name: CLAUDE.md gate (opt-in; master pointer + numbered TOC)
+        if: ${{ inputs.claude_md_check }}
+        run: |
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_claude_md.py --root .
 
       # ShellCheck (#5). Opt-in (shellcheck_check); the step is simply not invoked otherwise.
       # The breachsafe-container does not ship shellcheck, so the static binary is fetched into
