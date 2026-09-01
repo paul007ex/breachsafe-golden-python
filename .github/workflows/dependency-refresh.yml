@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reusable dependency-refresh gate: keep `uv.lock` moving.
+#
+# Dependabot's `pip` ecosystem reads pyproject.toml constraints. It does not read
+# `uv.lock`, which is the file that decides what actually installs. A repo whose
+# pyproject says `gradio>=6` therefore gets zero pip PRs forever, while its lock
+# stays frozen at whatever version it was written with. Measured on
+# BreachSAFE/qureddy-app: 3 github-actions PRs, 0 pip PRs, lock pinned at
+# gradio 6.26.0 with `gradio>=6` declared.
+#
+# `release-python.yml` already runs `uv lock --check`, which proves the lock is
+# CONSISTENT with pyproject.toml. Nothing proved it was CURRENT. This closes that.
+#
+# A consumer repo calls it from a thin scheduled workflow:
+#
+#   on:
+#     schedule:
+#       - cron: "0 6 * * 1"
+#     workflow_dispatch: {}
+#   jobs:
+#     dependency-refresh:
+#       uses: paul007ex/breachsafe-golden-python/.github/workflows/dependency-refresh.yml@v1
+#       permissions:
+#         contents: write
+#         pull-requests: write
+#
+# The PR it opens runs the consumer's full gate suite. A dependency that breaks the
+# build therefore arrives as a red PR rather than as a surprise on a developer's
+# machine, which is the point: track latest, find out immediately, fix forward.
+
+name: dependency-refresh
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: "Python version used to resolve the lock"
+        type: string
+        required: false
+        default: "3.14"
+      branch:
+        description: "Branch the refresh PR is opened from"
+        type: string
+        required: false
+        default: "chore/dependency-refresh"
+      packages:
+        description: >-
+          Space-separated package names to upgrade. Empty means upgrade every
+          locked dependency.
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: uv lock --upgrade
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Record the lock before
+        id: before
+        run: |
+          set -euo pipefail
+          test -f uv.lock || { echo "::error::no uv.lock in this repository"; exit 1; }
+          sha256sum uv.lock | cut -d' ' -f1 > /tmp/lock.before
+
+      - name: Upgrade the lock
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.packages }}" ]; then
+            for pkg in ${{ inputs.packages }}; do
+              uv lock --upgrade-package "$pkg"
+            done
+          else
+            uv lock --upgrade
+          fi
+
+      - name: Summarise what moved
+        id: diff
+        run: |
+          set -euo pipefail
+          if [ "$(sha256sum uv.lock | cut -d' ' -f1)" = "$(cat /tmp/lock.before)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Every dependency is already at its newest resolvable version."
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          # name + version pairs that differ, rendered for the PR body
+          git diff -U0 -- uv.lock \
+            | grep -E '^[+-](name|version) = ' \
+            | sed 's/^/    /' > /tmp/lock.diff || true
+          {
+            echo "moved<<EOF"
+            head -c 60000 /tmp/lock.diff
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open the refresh PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7
+        with:
+          branch: ${{ inputs.branch }}
+          delete-branch: true
+          title: "chore(deps): refresh uv.lock"
+          commit-message: |
+            chore(deps): refresh uv.lock
+
+            Opened by the reusable dependency-refresh workflow. Dependabot's pip
+            ecosystem does not read uv.lock, so without this the lock never moves
+            even when pyproject.toml permits a newer version.
+
+            The full gate suite runs on this PR. A dependency that breaks the build
+            shows up here rather than on a developer's machine.
+          body: |
+            `uv lock --upgrade` moved one or more pinned versions.
+
+            Dependabot's `pip` ecosystem reads `pyproject.toml` constraints and does
+            not read `uv.lock`. A constraint such as `gradio>=6` is already satisfied,
+            so no PR is ever opened, while the lock keeps installing the version it
+            was written with. This workflow is what keeps the lock current.
+
+            ### What moved
+
+            ```
+            ${{ steps.diff.outputs.moved }}
+            ```
+
+            Review the gate results below before merging. A red gate here is the
+            intended outcome for a breaking upgrade: it is the signal to fix forward,
+            not to pin backwards.
