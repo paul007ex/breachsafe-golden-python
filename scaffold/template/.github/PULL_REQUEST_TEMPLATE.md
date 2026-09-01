@@ -108,6 +108,29 @@ Every box must be honestly checked or the PR is not ready.
       redistribution-compatible license, recognizable maintainer)
 - [ ] `pip-audit` passes (no HIGH or CRITICAL CVEs) — PASS / FAIL / NOT RUN:
 
+## Conformance scorecard
+
+Rate this change against the pre-merge anti-pattern categories. Source: the
+`breachsafe-review-gate` and `breachsafe-quality-review` skills. Check each category that is
+clean for this PR, then report the tally.
+
+- [ ] Size policy / LOC: surgical scope within the size gate, or a linked decision record
+      justifies a non-surgical diff
+- [ ] Tests fail before the fix: the new or changed tests are red when the fix is reverted
+- [ ] Gates green: `just gates` passed on real exit codes, no gate weakened to pass
+- [ ] Docs and changelog: both updated for any behaviour change (or N/A stated with reason)
+- [ ] Anti-patterns clean: the pre-commit anti-pattern self-check ran and nothing is left
+      flagged without human sign-off
+- [ ] CI hygiene: no skip-masking, no never-ran workflow presented as coverage
+- [ ] Supply-chain: dependencies pinned and justified, `pip-audit` clean, provenance intact
+
+Report the score as **X / 7 categories cleared.** Score: __ / 7
+
+- [ ] **Changed files rendered (full before/after), diff is non-empty.** A review that
+      inspected zero added lines is not a review. See anti-pattern catalog entry #76.2 in
+      `breachsafe-quality-review/references/comprehensive-anti-pattern-catalog.md`
+      (breachsafe-common).
+
 ## Reviewer notes
 
 <!-- Anything you want the reviewer to focus on. Out-of-scope flags. Open questions. -->
