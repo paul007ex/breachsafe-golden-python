@@ -56,6 +56,7 @@ jobs:
   static:
     name: Static analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     container:
       image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
       # breachsafe-container ships USER breachsafe (uid 1000) for defence in depth.
@@ -248,6 +249,7 @@ jobs:
   test:
     name: Unit tests + coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: static
     container:
       image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
@@ -364,6 +366,7 @@ jobs:
   build-audit:
     name: Build + trivy audit
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: static
     container:
       image: ghcr.io/paul007ex/breachsafe-container:${{ inputs.container_tag }}
