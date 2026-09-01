@@ -41,6 +41,21 @@ on:
         type: boolean
         required: false
         default: false
+      adr_check:
+        description: "Fail if an implementation change cites an ADR still marked Proposed (opt-in)"
+        type: boolean
+        required: false
+        default: false
+      shellcheck_check:
+        description: "Run ShellCheck over **/*.sh (opt-in; not invoked unless true)"
+        type: boolean
+        required: false
+        default: false
+      hadolint_check:
+        description: "Run Hadolint over **/Dockerfile* (opt-in; not invoked unless true)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -166,6 +181,72 @@ jobs:
       - name: No-mocks gate (default-real tests)
         if: ${{ inputs.mocks_check }}
         run: python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_no_mocks.py --tests-dir tests
+
+      # Proposed-ADR gate (#4). Opt-in (adr_check), PR-only. Fails when an added source line
+      # cites an ADR whose Status is still Proposed/Draft: the code lands before the decision it
+      # claims to follow is ratified. A `# adr-exempt: <reason>` marker on the line waives it.
+      - name: Proposed-ADR gate (opt-in; implementation must cite an Accepted ADR)
+        if: ${{ inputs.adr_check && github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if ! git rev-parse --verify --quiet "$BASE_SHA^{commit}" >/dev/null; then
+            git fetch --no-tags --depth=1 origin \
+              "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          fi
+          git rev-parse --verify --quiet "$BASE_SHA^{commit}" >/dev/null || {
+            echo "::error::PR base commit $BASE_SHA is unavailable after fetching $BASE_REF" >&2
+            exit 2
+          }
+          python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_adr_status.py \
+            --base-ref "$BASE_SHA" --head "$HEAD_SHA" --repo-root . \
+            | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+
+      # ShellCheck (#5). Opt-in (shellcheck_check); the step is simply not invoked otherwise.
+      # The breachsafe-container does not ship shellcheck, so the static binary is fetched into
+      # $RUNNER_TEMP when absent rather than assumed on PATH.
+      - name: ShellCheck (opt-in; **/*.sh)
+        if: ${{ inputs.shellcheck_check }}
+        run: |
+          set -euo pipefail
+          shellcheck_bin=shellcheck
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            ver=v0.10.0
+            url="https://github.com/koalaman/shellcheck/releases/download/${ver}/shellcheck-${ver}.linux.x86_64.tar.xz"
+            curl -fsSL "$url" | tar -xJ -C "$RUNNER_TEMP"
+            shellcheck_bin="$RUNNER_TEMP/shellcheck-${ver}/shellcheck"
+          fi
+          mapfile -t files < <(find . -type f -name '*.sh' -not -path './.git/*')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no *.sh files found; nothing to check"
+            exit 0
+          fi
+          "$shellcheck_bin" "${files[@]}"
+
+      # Hadolint (#5). Opt-in (hadolint_check); the step is simply not invoked otherwise.
+      # The breachsafe-container does not ship hadolint, so the static binary is fetched into
+      # $RUNNER_TEMP when absent rather than assumed on PATH.
+      - name: Hadolint (opt-in; **/Dockerfile*)
+        if: ${{ inputs.hadolint_check }}
+        run: |
+          set -euo pipefail
+          hadolint_bin=hadolint
+          if ! command -v hadolint >/dev/null 2>&1; then
+            hadolint_bin="$RUNNER_TEMP/hadolint"
+            curl -fsSL -o "$hadolint_bin" \
+              https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+            chmod +x "$hadolint_bin"
+          fi
+          mapfile -t files < <(find . -type f -name 'Dockerfile*' -not -path './.git/*')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no Dockerfile* files found; nothing to check"
+            exit 0
+          fi
+          "$hadolint_bin" "${files[@]}"
 
       - name: Install project (locked dev extras)
         run: uv sync --locked --extra dev
