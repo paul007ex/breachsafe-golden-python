@@ -36,6 +36,11 @@ on:
         description: "breachsafe-container tag, e.g. 3.14-openssl3.5"
         type: string
         required: true
+      mocks_check:
+        description: "Fail if tests use mocks/monkeypatch (default-real; opt-in until migrated)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -154,6 +159,13 @@ jobs:
       # maintain. reuse ships in the image, so it needs no venv.
       - name: reuse lint (before any environment is created)
         run: reuse lint
+
+      # Default-real test rule (catalog #147): no mocks/monkeypatch in checked-in tests. Opt-in
+      # (mocks_check) until a consumer has migrated its suite. A `# real-double: <reason>` marker
+      # on a line exempts a genuinely-unavoidable double, paired with a real-path test.
+      - name: No-mocks gate (default-real tests)
+        if: ${{ inputs.mocks_check }}
+        run: python3 "$RUNNER_TEMP"/bqp-common/quality-gates/check_no_mocks.py --tests-dir tests
 
       - name: Install project (locked dev extras)
         run: uv sync --locked --extra dev
