@@ -6,6 +6,20 @@ This file guides Claude Code (and any AI agent) working in this repository. It w
 generated from `{{ github_owner }}/breachsafe-golden-python/scaffold` (copier). Do not hand-edit the
 GENERATED sections; run `just template-update` to pull upstream template changes.
 
+## Contents
+
+1. [Instruction hierarchy](#instruction-hierarchy)
+2. [Companion file](#companion-file)
+3. [STOP: read these before you touch anything](#stop-read-these-before-you-touch-anything)
+4. [What this repo is](#what-this-repo-is)
+5. [Standing invariants (inherited, do not relitigate)](#standing-invariants-inherited-do-not-relitigate)
+6. [Standing process rules](#standing-process-rules-enforced-by-the-change-governance-gate-not-left-to-hope)
+7. [Build / test / gate commands](#build--test--gate-commands)
+8. [Test harness](#test-harness)
+9. [CI](#ci)
+10. [Security posture (OpenSSF Scorecard)](#security-posture-openssf-scorecard)
+11. [Skills](#skills-smart-claude-on-day-one)
+
 ## Instruction hierarchy
 
 Read and apply these in order. Each layer refines the one above it and never silently weakens it.
@@ -28,7 +42,7 @@ of sync.
 commands, the gate bars, and the handoff format. **This file is policy; that file is the loop.**
 Read both. Neither duplicates the other.
 
-## STOP — read these before you touch anything
+## STOP: read these before you touch anything
 
 You are not done onboarding until you have **opened and read** every item below and can
 **state what each one says**. Not "I am familiar with this". Not "standard practice". The
@@ -49,7 +63,7 @@ If you cannot answer those from having read the files, you have not read them.
 |---|---|---|
 | 1 | **This entire file** | The invariants below are inherited and not open to relitigation |
 | 2 | `~/claude/CLAUDE.md` (platform, auto-loads) | Cross-repo policy: licensing, OpenSSL 3.5 LTS baseline, canonical remotes. Where it conflicts with this file, **this file wins for this repo** and the conflict is named here |
-| 3 | `breachsafe-common/skills/skills/breachsafe-implement/references/remediation-procedure.md` | The 8-step issue-to-main procedure and the evidence each step owes. Report `N/8`. Do not invent your own workflow |
+| 3 | `breachsafe-common/skills/skills/breachsafe-implement/references/remediation-procedure.md` | The issue-to-main procedure and the evidence each step owes, mapped onto the platform ten-step loop. Report `N/10`. Do not invent your own workflow |
 | 4 | `.github/PULL_REQUEST_TEMPLATE.md` | What evidence a PR must carry. Filling it in afterwards from memory is how unreported red gates happen |
 | 5 | `justfile` | The **actual** gate commands. Do not guess them, and do not run a subset and call it "the gates" |
 | 6 | `docs/decisions/` (if present) | Accepted decisions. Re-opening one without reading it wastes a review cycle |
@@ -76,7 +90,7 @@ If you cannot answer those from having read the files, you have not read them.
 - Python import name: `{{ module_name }}`
 - Python baseline: `{{ python_version }}`
 
-## Standing invariants (inherited — do not relitigate)
+## Standing invariants (inherited, do not relitigate)
 
 - **License.** Every first-party file carries an `SPDX-License-Identifier` header set to
   `{{ license }}`.
