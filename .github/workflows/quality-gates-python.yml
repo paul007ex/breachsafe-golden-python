@@ -319,10 +319,12 @@ jobs:
       # (it needs the coverage.xml produced there).
       # =======================================================================
       - name: jscpd (copy-paste detector, <=0.5% duplication)
-        # jscpd is Node-based; the breachsafe-container image carries Node 20 for
-        # this gate (mirrors the standalone duplicate-code.yml, threshold tuned
-        # to 0.5% here via the consumer repo's .jscpd.json).
-        run: npx --yes jscpd@4 --config .jscpd.json .
+        # jscpd is Node-based and is installed, version-pinned, in the
+        # breachsafe-container image. Running the image binary keeps this gate
+        # offline and prevents npx from silently selecting another major.
+        run: |
+          test "$(jscpd --version)" = "cpd 5.1.1"
+          jscpd --config .jscpd.json .
 
       - name: xenon (cyclomatic-complexity ceiling)
         run: |
