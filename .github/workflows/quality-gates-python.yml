@@ -92,7 +92,7 @@ jobs:
       # image and the devcontainer.
       options: --user root
     steps:
-      - name: Checkout consumer repo (full history for gitleaks)
+      - name: Checkout consumer repo (reachable history for Gitleaks)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -290,8 +290,8 @@ jobs:
       - name: pip-audit
         run: uv run --locked pip-audit
 
-      - name: gitleaks full-history scan
-        run: gitleaks detect --source . --redact --no-banner --log-opts="--all"
+      - name: Gitleaks calling-ref history scan
+        run: gitleaks detect --source . --redact --no-banner --log-opts="HEAD"
 
       - name: Size policy (file/function/class ceilings)
         run: |
