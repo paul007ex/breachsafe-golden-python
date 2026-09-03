@@ -19,23 +19,17 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import subprocess  # nosec B404 - fixed argv, no shell
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from diff_support import AddedLine, collect_diff, parse_added_lines as parse_diff_added_lines
 
 SOURCE_SUFFIXES = {
     ".bash", ".go", ".js", ".jsx", ".py", ".pyi", ".rb", ".rs", ".sh",
     ".ts", ".tsx", ".yml", ".yaml",
 }
 TEST_PARTS = {"test", "tests", "spec", "specs"}
-
-
-@dataclass(frozen=True)
-class AddedLine:
-    path: str
-    number: int
-    text: str
 
 
 @dataclass(frozen=True)
@@ -69,37 +63,7 @@ def _is_test_path(path: str) -> bool:
 
 def parse_added_lines(diff: str) -> list[AddedLine]:
     """Parse unified diff hunks into added lines with their post-image number."""
-    lines: list[AddedLine] = []
-    path: str | None = None
-    new_number = 0
-    for raw in diff.splitlines():
-        if raw.startswith("+++ b/"):
-            path = raw[6:]
-            continue
-        match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", raw)
-        if match:
-            new_number = int(match.group(1))
-            continue
-        if path is None or raw.startswith(("--- ", "diff ", "index ")):
-            continue
-        if raw.startswith("+"):
-            if Path(path).suffix.lower() in SOURCE_SUFFIXES:
-                lines.append(AddedLine(path, new_number, raw[1:]))
-            new_number += 1
-        elif raw.startswith((" ", "-")):
-            if not raw.startswith("-"):
-                new_number += 1
-    return lines
-
-
-def collect_diff(base: str, head: str) -> str:
-    argv = ["git", "diff", "--unified=0", "--no-ext-diff", f"{base}...{head}"]
-    try:
-        result = subprocess.run(argv, capture_output=True, text=True, check=True)  # nosec B603
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        detail = getattr(exc, "stderr", "") or str(exc)
-        raise ValueError(f"git diff failed: {detail.strip()}") from exc
-    return result.stdout
+    return parse_diff_added_lines(diff, SOURCE_SUFFIXES)
 
 
 def findings(lines: list[AddedLine]) -> list[Finding]:
