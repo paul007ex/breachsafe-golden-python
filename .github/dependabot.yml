@@ -1,3 +1,4 @@
+# SPDX-FileCopyrightText: 2026 BreachSAFE
 # SPDX-License-Identifier: Apache-2.0
 #
 # Automated dependency-update PRs. CI runs on each PR before merge. Added to close
