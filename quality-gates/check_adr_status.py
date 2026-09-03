@@ -43,10 +43,11 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess  # nosec B404 - fixed argv, no shell
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from diff_support import AddedLine, collect_diff, parse_added_lines as parse_diff_added_lines
 
 # Source/config suffixes count as "implementation"; markdown deliberately does not,
 # so an ADR or doc that names another ADR is never treated as building it.
@@ -77,13 +78,6 @@ STATUS_RE = re.compile(
 
 
 @dataclass(frozen=True)
-class AddedLine:
-    path: str
-    number: int
-    text: str
-
-
-@dataclass(frozen=True)
 class Finding:
     ref: str
     adr_path: Path
@@ -93,27 +87,7 @@ class Finding:
 
 def parse_added_lines(diff: str) -> list[AddedLine]:
     """Parse unified diff hunks into added source lines with their post-image number."""
-    lines: list[AddedLine] = []
-    path: str | None = None
-    new_number = 0
-    for raw in diff.splitlines():
-        if raw.startswith("+++ b/"):
-            path = raw[6:]
-            continue
-        match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", raw)
-        if match:
-            new_number = int(match.group(1))
-            continue
-        if path is None or raw.startswith(("--- ", "diff ", "index ")):
-            continue
-        if raw.startswith("+"):
-            if Path(path).suffix.lower() in SOURCE_SUFFIXES:
-                lines.append(AddedLine(path, new_number, raw[1:]))
-            new_number += 1
-        elif raw.startswith((" ", "-")):
-            if not raw.startswith("-"):
-                new_number += 1
-    return lines
+    return parse_diff_added_lines(diff, SOURCE_SUFFIXES)
 
 
 def find_adr_refs(text: str) -> list[str]:
@@ -194,16 +168,6 @@ def scan(
             if status in BLOCKING_STATUSES:
                 findings.append(Finding(ref, adr_path, status or "", line))
     return findings, unresolved
-
-
-def collect_diff(base: str, head: str) -> str:
-    argv = ["git", "diff", "--unified=0", "--no-ext-diff", f"{base}...{head}"]
-    try:
-        result = subprocess.run(argv, capture_output=True, text=True, check=True)  # nosec B603
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        detail = getattr(exc, "stderr", "") or str(exc)
-        raise ValueError(f"git diff failed: {detail.strip()}") from exc
-    return result.stdout
 
 
 def find_decisions_dir(repo_root: Path, explicit: Path | None) -> Path:
