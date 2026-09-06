@@ -78,5 +78,8 @@ golden_ref:
 
 container_tag:
   type: str
+  # The SERIES tag, not a patch tag. 3.14-openssl3.5.7 is retired: the image now
+  # ships 3.5.8, so a scaffolded repo pinned to the patch renders CI against a tag
+  # whose contents moved. The series tag absorbs a 3.5.x bump with no downstream edit.
   help: Tag of ghcr.io/<owner>/breachsafe-container to run CI/dev in.
-  default: "3.14-openssl3.5.7"
+  default: "3.14-openssl3.5"
